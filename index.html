@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Caro AI Cloud - Siêu Cấp Minimax</title>
+    <title>Caro AI Cloud - Sát Thủ Bẫy</title>
     <style>
         body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #333; padding: 5px; border-radius: 5px; border: 2px solid #555; }
@@ -17,7 +17,7 @@
 </head>
 <body>
     <div class="controls">
-        <h1>CARO AI MINIMAX</h1>
+        <h1>CARO AI SÁT THỦ</h1>
         <button id="startBtn">BẮT ĐẦU CHIẾN</button>
         <div id="status">Đang kết nối Cloud...</div>
     </div>
@@ -38,7 +38,7 @@
             try {
                 const snapshot = await get(child(ref(db), 'brain'));
                 if (snapshot.exists()) brainData = snapshot.val();
-                document.getElementById('status').innerText = "Não bộ Minimax đã sẵn sàng!";
+                document.getElementById('status').innerText = "Não bộ Sát Thủ đã sẵn sàng!";
             } catch (e) { document.getElementById('status').innerText = "Offline Mode"; }
         }
         loadBrain();
@@ -60,32 +60,28 @@
         window.playerMove = (r, c) => {
             if (isGameOver || board[r][c]) return;
             makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) {
-                endGame("GG WP! Bro quá đỉnh!");
-            } else {
-                document.getElementById('status').innerText = "Bot đang tính 3 nước...";
-                setTimeout(botMove, 200);
+            if (checkWin(r, c, 'X')) { endGame("GG WP! Bro quá đỉnh!"); }
+            else {
+                document.getElementById('status').innerText = "Bot đang soi trap...";
+                setTimeout(botMove, 300);
             }
         };
 
         function botMove() {
             if (isGameOver) return;
-            let bestVal = -Infinity;
+            let bestScore = -Infinity;
             let move = null;
 
-            // Quét các vùng có quân để tính cho nhanh
+            // Chỉ tính những ô gần các quân đã đánh để tăng tốc độ
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
-                    if (!board[r][c]) {
-                        board[r][c] = 'O';
-                        let moveVal = minimax(0, false, -Infinity, Infinity);
-                        board[r][c] = null;
-                        
-                        // Cộng thêm điểm từ kinh nghiệm Cloud
-                        moveVal += (brainData[`${r}_${c}`] || 0) * 10;
+                    if (!board[r][c] && hasNeighbor(r, c)) {
+                        let score = evaluatePoint(r, c);
+                        // Cộng thêm điểm từ kinh nghiệm Cloud (ghi nhớ trap cũ)
+                        score += (brainData[`${r}_${c}`] || 0) * 50;
 
-                        if (moveVal > bestVal) {
-                            bestVal = moveVal;
+                        if (score > bestScore) {
+                            bestScore = score;
                             move = {r, c};
                         }
                     }
@@ -94,52 +90,62 @@
 
             if (move) {
                 makeMove(move.r, move.c, 'O');
-                if (checkWin(move.r, move.c, 'O')) {
-                    endGame("Bot thắng! Trận đấu kết thúc.");
-                } else { document.getElementById('status').innerText = "Đến lượt bro!"; }
+                if (checkWin(move.r, move.c, 'O')) { endGame("Bot thắng! Trận đấu kết thúc."); }
+                else { document.getElementById('status').innerText = "Đến lượt bro!"; }
             }
         }
 
-        // THUẬT TOÁN MINIMAX SIÊU THÂM
-        function minimax(depth, isMax, alpha, beta) {
-            if (depth === 2) return evaluateBoard(); // Tính sâu 2-3 lớp
-
-            if (isMax) {
-                let best = -Infinity;
-                for(let r=0; r<SIZE; r++) {
-                    for(let c=0; c<SIZE; c++) {
-                        if(!board[r][c]) {
-                            board[r][c] = 'O';
-                            best = Math.max(best, minimax(depth + 1, !isMax, alpha, beta));
-                            board[r][c] = null;
-                            alpha = Math.max(alpha, best);
-                            if (beta <= alpha) break;
-                        }
-                    }
+        function hasNeighbor(r, c) {
+            for (let i=-1; i<=1; i++) {
+                for (let j=-1; j<=1; j++) {
+                    let nr = r+i, nc = c+j;
+                    if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) return true;
                 }
-                return best;
-            } else {
-                let best = Infinity;
-                for(let r=0; r<SIZE; r++) {
-                    for(let c=0; c<SIZE; c++) {
-                        if(!board[r][c]) {
-                            board[r][c] = 'X';
-                            best = Math.min(best, minimax(depth + 1, !isMax, alpha, beta));
-                            board[r][c] = null;
-                            beta = Math.min(beta, best);
-                            if (beta <= alpha) break;
-                        }
-                    }
-                }
-                return best;
             }
+            return false;
         }
 
-        function evaluateBoard() {
-            let totalScore = 0;
-            // Hàm này quét toàn bộ bàn cờ để chấm điểm cho Bot
-            // Ưu tiên: 4 quân liên tiếp > 3 quân hở 2 đầu > chặn đối thủ
-            return Math.random() * 100; // Thay thế bằng logic chấm điểm chi tiết
+        // HÀM CHẤM ĐIỂM SIÊU THÂM ĐỘC
+        function evaluatePoint(r, c) {
+            let score = 0;
+            const directions = [[1,0], [0,1], [1,1], [1,-1]];
+            
+            directions.forEach(([dr, dc]) => {
+                let scoreO = getLineScore(r, c, dr, dc, 'O'); // Điểm tấn công
+                let scoreX = getLineScore(r, c, dr, dc, 'X'); // Điểm phòng thủ
+                
+                // Nếu người chơi có thế mạnh, ưu tiên chặn (phòng thủ)
+                // Nếu Bot có thế mạnh, ưu tiên dứt điểm (tấn công)
+                score += scoreO + scoreX;
+            });
+            return score;
+        }
+
+        function getLineScore(r, c, dr, dc, p) {
+            let count = 0, blocks = 0;
+            
+            // Đếm xuôi
+            let nr = r + dr, nc = c + dc;
+            while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=dr; nc+=dc; }
+            if (nr<0 || nr>=SIZE || nc<0 || nc>=SIZE || (board[nr][nc] && board[nr][nc] !== p)) blocks++;
+
+            // Đếm ngược
+            nr = r - dr; nc = c - dc;
+            while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr-=dr; nc-=dc; }
+            if (nr<0 || nr>=SIZE || nc<0 || nc>=SIZE || (board[nr][nc] && board[nr][nc] !== p)) blocks++;
+
+            // Bảng điểm chuẩn "Sát thủ"
+            if (count >= 4) return 100000; // Thắng tới nơi
+            if (blocks === 0) {
+                if (count === 3) return 50000; // Trap 3 hở 2 đầu (cực nguy hiểm)
+                if (count === 2) return 5000;  
+                if (count === 1) return 100;
+            } else if (blocks === 1) {
+                if (count === 3) return 10000;
+                if (count === 2) return 500;
+                if (count === 1) return 10;
+            }
+            return 0;
         }
 
         function makeMove(r, c, p) {
@@ -148,21 +154,20 @@
             el.innerText = p; el.classList.add(p);
         }
 
-        function count(r, c, dr, dc, p) {
-            let n = 0;
-            [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
-                let nr = r + tr, nc = c + tc;
-                while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) {
-                    n++; nr += tr; nc += tc;
-                }
+        function checkWin(r, c, p) {
+            const dirs = [[1,0], [0,1], [1,1], [1,-1]];
+            return dirs.some(([dr, dc]) => {
+                let cnt = 1;
+                [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
+                    let nr = r+tr, nc = c+tc;
+                    while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { cnt++; nr+=tr; nc+=tc; }
+                });
+                return cnt >= 5; // Đánh 5 quân mới thắng cho chuẩn luật
             });
-            return n;
         }
 
-        function checkWin(r, c, p) { return [[1,0], [0,1], [1,1], [1,-1]].some(([dr, dc]) => count(r, c, dr, dc, p) >= 4); }
-
         function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = () => { isGameOver = false; initBoard(); document.getElementById('status').innerText = "Chiến thôi!"; };
+        document.getElementById('startBtn').onclick = () => { isGameOver = false; initBoard(); document.getElementById('status').innerText = "Trận đấu bắt đầu!"; };
     </script>
 </body>
 </html>
