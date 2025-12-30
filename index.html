@@ -4,21 +4,25 @@
     <meta charset="UTF-8">
     <title>Caro AI Cloud - Siêu Cấp</title>
     <style>
-        body { background: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; }
-        #board { display: grid; grid-template-columns: repeat(12, 40px); gap: 2px; background: #333; padding: 5px; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .cell { width: 40px; height: 40px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .cell:hover { background: #3a3a3a; }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #333; padding: 5px; border-radius: 5px; }
+        .cell { width: 35px; height: 35px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; }
+        .cell:hover { background: #444; }
         .cell.X { color: #ff4757; }
         .cell.O { color: #2e9eff; }
-        button { margin: 20px; padding: 12px 30px; font-size: 18px; cursor: pointer; background: #2ed573; color: white; border: none; border-radius: 50px; font-weight: bold; transition: 0.3s; }
-        button:hover { transform: scale(1.1); background: #7bed9f; }
+        .controls { margin-bottom: 20px; text-align: center; }
+        button { padding: 10px 25px; font-size: 16px; cursor: pointer; background: #2ed573; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        #status { margin-top: 15px; font-weight: bold; color: #eccc68; }
     </style>
 </head>
 <body>
-    <h1>CARO AI - HỌC LỎM TỪ CLOUD</h1>
-    <button onclick="startGame()">BẮT ĐẦU CHIẾN</button>
+    <div class="controls">
+        <h1>CARO AI CLOUD</h1>
+        <button id="startBtn">BẮT ĐẦU CHIẾN</button>
+        <div id="status">Sẵn sàng...</div>
+    </div>
     <div id="board"></div>
-    <p id="status">Đang kết nối Cloud...</p>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>
