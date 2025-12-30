@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>IMPOSSBILE BOT CARO</title>
+    <title>CARO V13 - STEALTH OVERLORD</title>
     <style>
         body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         #board { display: grid; grid-template-columns: repeat(12, 38px); gap: 2px; background: #111; padding: 12px; border-radius: 15px; border: 4px solid #00ff88; box-shadow: 0 0 60px rgba(0,255,136,0.3); }
@@ -16,15 +16,13 @@
         button { padding: 18px 55px; font-size: 24px; cursor: pointer; background: #00ff88; color: #000; border: none; border-radius: 10px; font-weight: 900; transition: 0.3s; text-transform: uppercase; }
         button:hover { transform: scale(1.1); box-shadow: 0 0 40px rgba(0,255,136,0.6); }
         #status { margin-top: 20px; font-size: 1.5em; font-weight: bold; color: #00ff88; font-style: italic; }
-        /* Hiệu ứng viền đỏ khi Radar báo động */
-        .threat-alert { box-shadow: inset 0 0 10px #ff0000 !important; border: 1px solid #ff0000 !important; }
     </style>
 </head>
 <body>
     <div class="controls">
         <h1>BOTT</h1>
         <button id="startBtn">GIAO CHIẾN</button>
-        <div id="status">12 LẠNG SƠN CHÀO ANH EM NHÁ</div>
+        <div id="status">I'M COMING!</div>
     </div>
     <div id="board"></div>
 
@@ -38,37 +36,31 @@
 
         const SIZE = 12;
         let board = [], history = [], brainData = {}, isGameOver = true;
-        let urgentMoves = []; // Bộ nhớ đệm của Radar
+        let urgentMoves = []; 
 
         async function loadBrain() {
             try {
                 const snapshot = await get(child(ref(db), 'brain'));
                 if (snapshot.exists()) brainData = snapshot.val();
-                document.getElementById('status').innerText = "V12: Radar & Não bộ kiện tướng Online!";
-            } catch (e) { document.getElementById('status').innerText = "V12: Offline Mode"; }
+                document.getElementById('status').innerText = "V13: Đã sẵn sàng phục thù!";
+            } catch (e) { document.getElementById('status').innerText = "V13: Offline"; }
         }
         loadBrain();
 
-        // --- HÀM QUÉT LIÊN TỤC 20 TPS (MỚI THÊM VÀO) ---
+        // --- RADAR CHẠY NGẦM 20 TPS (KHÔNG HIỆN ĐỎ) ---
         setInterval(() => {
             if (isGameOver) return;
             urgentMoves = [];
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
                     if (!board[r][c]) {
-                        // Gọi hàm phân tích gốc để tìm nước nguy hiểm (X)
+                        // Quét phòng thủ cực mạnh (Hệ số 8.0)
                         let defScore = getTacticalScore(r, c, 1, 0, 'X') + 
                                        getTacticalScore(r, c, 0, 1, 'X') + 
                                        getTacticalScore(r, c, 1, 1, 'X') + 
                                        getTacticalScore(r, c, 1, -1, 'X');
                         
-                        // Nếu m có hàng 3 hở 2 đầu hoặc hàng 4, Radar báo động ngay
-                        if (defScore >= 800000000) {
-                            urgentMoves.push({r, c});
-                            document.getElementById(`c-${r}-${c}`).classList.add('threat-alert');
-                        } else {
-                            document.getElementById(`c-${r}-${c}`).classList.remove('threat-alert');
-                        }
+                        if (defScore >= 800000000) urgentMoves.push({r, c});
                     }
                 }
             }
@@ -90,22 +82,21 @@
         window.playerMove = (r, c) => {
             if (isGameOver || board[r][c]) return;
             makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) { endGame("V12: BRO LÀ TRÙM!"); saveToCloud('X'); }
-            else { document.getElementById('status').innerText = "V12 đang soi bẫy..."; setTimeout(botMove, 150); }
+            if (checkWin(r, c, 'X')) { endGame("V13: M BÁ ĐẠO RỒI!"); saveToCloud('X'); }
+            else { document.getElementById('status').innerText = "V13 đang tính bẫy thâm..."; setTimeout(botMove, 150); }
         };
 
         function botMove() {
             if (isGameOver) return;
             let bestScore = -Infinity, move = null;
 
-            // ƯU TIÊN PHẢN ỨNG RADAR (NẾU CÓ THREAT 3 HỞ)
             if (urgentMoves.length > 0) {
-                move = urgentMoves[0];
+                move = urgentMoves[0]; // Chặn nước 3 hở ngay lập tức
             } else {
                 for (let r=0; r<SIZE; r++) {
                     for (let c=0; c<SIZE; c++) {
                         if (!board[r][c]) {
-                            let score = analyzeDetailed(r, c); // DÙNG LẠI HÀM CHI TIẾT GỐC
+                            let score = analyzeDetailedV13(r, c);
                             score += (brainData[`${r}_${c}`] || 0) * 2000; 
                             if (score > bestScore) { bestScore = score; move = {r, c}; }
                         }
@@ -116,13 +107,12 @@
             if (move) {
                 makeMove(move.r, move.c, 'O');
                 if (checkWin(move.r, move.c, 'O')) { endGame("Bot thắng! Quá non."); saveToCloud('O'); }
-                else { document.getElementById('status').innerText = "Mơ mà lọt được hàng 3!"; }
+                else { document.getElementById('status').innerText = "Đến lượt m!"; }
             }
         }
 
-        // --- PHỤC HỒI TOÀN BỘ HÀM PHÂN TÍCH CHI TIẾT (KHÔNG RÚT GỌN) ---
-        function analyzeDetailed(r, c) {
-            let totalScore = Math.random() * 1000;
+        function analyzeDetailedV13(r, c) {
+            let total = Math.random() * 1000;
             const directions = [[1,0], [0,1], [1,1], [1,-1]];
             let threatsX = 0, threatsO = 0;
             directions.forEach(([dr, dc]) => {
@@ -130,17 +120,18 @@
                 let defense = getTacticalScore(r, c, dr, dc, 'X');
                 if (attack >= 10000000) threatsO++;
                 if (defense >= 10000000) threatsX++;
-                totalScore += attack + defense * 6.5;
+                total += attack + defense * 7.5; // Ưu tiên thủ hơn V9
             });
-            if (threatsX >= 2) totalScore += 500000000; 
-            if (threatsO >= 2) totalScore += 450000000; 
+            if (threatsX >= 2) total += 600000000; 
+            if (threatsO >= 2) total += 550000000; 
+            // Kỹ thuật Vẩy rau (V9 Style)
             for(let i=-2; i<=2; i++){
                 for(let j=-2; j<=2; j++){
                     let nr=r+i, nc=c+j;
-                    if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) totalScore += 15000;
+                    if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) total += 18000;
                 }
             }
-            return totalScore;
+            return total;
         }
 
         function getTacticalScore(r, c, dr, dc, p) {
@@ -156,22 +147,23 @@
                     if(nr3>=0 && nr3<SIZE && nc3>=0 && nc3<SIZE && board[nr3][nc3] === p) remote++;
                 }
             });
+            // Knight's Move Trap (Mã ngược YouTube)
             [[2,1],[1,2],[-1,2],[-2,1],[-2,-1],[-1,-2],[1,-2],[2,-1]].forEach(([kr, kc]) => {
                 let nr=r+kr, nc=c+kc;
                 if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) knight++;
             });
             if (count >= 4) return 1000000000; 
-            if (count === 3 && open === 2) return 800000000; // CHẶN CHẾT HÀNG 3 HỞ
-            if (count === 3 && open === 1) return 100000000; 
-            if (gap >= 1 && count >= 2) return 70000000; 
-            if (knight >= 1 && count >= 1) return 50000000; 
-            if (remote >= 1) return 20000000; 
-            return count * 60000 + gap * 120000 + knight * 100000;
+            if (count === 3 && open === 2) return 900000000; // CHẶN CHẾT HÀNG 3 HỞ
+            if (count === 3 && open === 1) return 120000000; 
+            if (gap >= 1 && count >= 2) return 80000000; 
+            if (knight >= 1 && count >= 1) return 60000000; 
+            if (remote >= 1) return 25000000; 
+            return count * 70000 + gap * 130000 + knight * 110000;
         }
 
         function makeMove(r, c, p) {
             board[r][c] = p; history.push({r, c, p});
-            document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move', 'threat-alert'));
+            document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move'));
             const el = document.getElementById(`c-${r}-${c}`);
             el.innerText = p; el.classList.add(p, 'last-move');
         }
@@ -196,7 +188,7 @@
         }
 
         function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "V12: RADAR 20 TPS ON!"; };
+        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "V13: CHIẾN!"; };
     </script>
 </body>
 </html>
