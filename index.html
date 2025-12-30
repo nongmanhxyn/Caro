@@ -2,24 +2,24 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Caro AI Cloud - Sát Thủ Vô Đối</title>
+    <title>Caro AI Cloud - Final Boss</title>
     <style>
         body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #333; padding: 5px; border-radius: 5px; border: 2px solid #555; }
-        .cell { width: 35px; height: 35px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; }
-        .cell:hover { background: #444; }
-        .cell.X { color: #ff4757; }
-        .cell.O { color: #2e9eff; }
+        .cell { width: 35px; height: 35px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .cell:hover { background: #444; transform: scale(1.05); }
+        .cell.X { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
+        .cell.O { color: #2e9eff; text-shadow: 0 0 10px rgba(46, 158, 255, 0.5); }
         .controls { margin-bottom: 20px; text-align: center; }
-        button { padding: 12px 30px; font-size: 18px; cursor: pointer; background: #2ed573; color: white; border: none; border-radius: 50px; font-weight: bold; }
-        #status { margin-top: 15px; font-weight: bold; color: #eccc68; height: 24px; }
+        button { padding: 12px 30px; font-size: 18px; cursor: pointer; background: #2ed573; color: white; border: none; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.3); }
+        #status { margin-top: 15px; font-weight: bold; color: #eccc68; height: 24px; letter-spacing: 1px; }
     </style>
 </head>
 <body>
     <div class="controls">
-        <h1>CARO AI SÁT THỦ V2</h1>
-        <button id="startBtn">BẮT ĐẦU CHIẾN</button>
-        <div id="status">Đang kết nối Cloud...</div>
+        <h1>CARO AI FINAL BOSS</h1>
+        <button id="startBtn">PHỤC THÙ NGAY</button>
+        <div id="status">Đang nạp dữ liệu tối thượng...</div>
     </div>
     <div id="board"></div>
 
@@ -38,7 +38,7 @@
             try {
                 const snapshot = await get(child(ref(db), 'brain'));
                 if (snapshot.exists()) brainData = snapshot.val();
-                document.getElementById('status').innerText = "Não bộ Sát Thủ đã sẵn sàng!";
+                document.getElementById('status').innerText = "Final Boss đã sẵn sàng!";
             } catch (e) { document.getElementById('status').innerText = "Offline Mode"; }
         }
         loadBrain();
@@ -64,7 +64,7 @@
                 endGame("GG WP! Bro quá đỉnh!");
                 saveToCloud('X');
             } else {
-                document.getElementById('status').innerText = "Bot đang soi trap...";
+                document.getElementById('status').innerText = "Bot đang đọc tâm lý...";
                 setTimeout(botMove, 400);
             }
         };
@@ -74,16 +74,15 @@
             let bestScore = -Infinity;
             let move = null;
 
+            // Thuật toán quét điểm thông minh (Heuristic nâng cao)
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
                     if (!board[r][c]) {
-                        // Tính điểm công và thủ kết hợp
-                        let score = evaluatePoint(r, c);
+                        // Tính toán độ nguy hiểm của vị trí
+                        let score = evaluatePosition(r, c);
                         
-                        // Cộng hưởng điểm từ Cloud (Ghi nhớ những chỗ bro hay đặt trap)
-                        if (brainData[`${r}_${c}`]) {
-                            score += brainData[`${r}_${c}`] * 30;
-                        }
+                        // Kinh nghiệm từ Cloud (nhân hệ số cực lớn để nó không quên lỗi cũ)
+                        score += (brainData[`${r}_${c}`] || 0) * 100;
 
                         if (score > bestScore) {
                             bestScore = score;
@@ -102,46 +101,46 @@
             }
         }
 
-        function evaluatePoint(r, c) {
-            let attackScore = 0;
-            let defenseScore = 0;
+        function evaluatePosition(r, c) {
+            let score = Math.random() * 20; // Chút biến ảo
             const directions = [[1,0], [0,1], [1,1], [1,-1]];
 
             directions.forEach(([dr, dc]) => {
-                attackScore += getLineScore(r, c, dr, dc, 'O'); // Bot tấn công
-                defenseScore += getLineScore(r, c, dr, dc, 'X'); // Bot phòng thủ (chặn người)
+                let sO = getAdvScore(r, c, dr, dc, 'O'); // Công
+                let sX = getAdvScore(r, c, dr, dc, 'X'); // Thủ
+                
+                // Siêu thâm: Nếu m có nước đi tạo bẫy, nó sẽ ưu tiên chặn hơn cả tấn công
+                score += sO + sX * 1.5; 
             });
-
-            // Nếu điểm phòng thủ cao (người chơi sắp có trap) thì ưu tiên chặn gấp
-            // Nếu không thì tập trung tấn công để tạo trap
-            return attackScore + defenseScore * 1.2; 
+            return score;
         }
 
-        function getLineScore(r, c, dr, dc, p) {
-            let count = 0, openEnds = 0;
+        function getAdvScore(r, c, dr, dc, p) {
+            let count = 0, openEnds = 0, gap = 0;
             
-            // Hướng 1
-            let nr = r + dr, nc = c + dc;
-            while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=dr; nc+=dc; }
-            if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) openEnds++;
-
-            // Hướng 2
-            nr = r - dr; nc = c - dc;
-            while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr-=dr; nc-=dc; }
-            if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) openEnds++;
-
-            // Bảng điểm "Sát Thủ" - Ưu tiên cực cao cho các thế cờ hở 2 đầu
-            if (count >= 4) return 100000; // Sắp thắng
-            if (count === 3) {
-                if (openEnds === 2) return 10000; // Thế 3 hở 2 đầu (Trap chết người)
-                if (openEnds === 1) return 1000;
+            // Logic quét xa hơn để phát hiện bẫy cách quãng
+            for(let i=1; i<=4; i++) {
+                let nr = r + dr*i, nc = c + dc*i;
+                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
+                    if(board[nr][nc] === p) count++;
+                    else if(!board[nr][nc]) { openEnds++; break; }
+                    else { break; }
+                }
             }
-            if (count === 2) {
-                if (openEnds === 2) return 500;
-                if (openEnds === 1) return 100;
+            for(let i=1; i<=4; i++) {
+                let nr = r - dr*i, nc = c - dc*i;
+                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
+                    if(board[nr][nc] === p) count++;
+                    else if(!board[nr][nc]) { openEnds++; break; }
+                    else { break; }
+                }
             }
-            if (count === 1) return openEnds === 2 ? 50 : 10;
-            return 0;
+
+            // Bảng điểm bẫy chuyên nghiệp
+            if (count >= 4) return 1000000;
+            if (count === 3) return openEnds === 2 ? 50000 : 5000;
+            if (count === 2) return openEnds === 2 ? 1000 : 100;
+            return count * 10;
         }
 
         function makeMove(r, c, p) {
@@ -166,14 +165,14 @@
         function saveToCloud(winner) {
             history.forEach(m => {
                 let key = `${m.r}_${m.c}`;
-                // Lưu lại nước đi: Nếu giúp thắng thì cộng điểm, thua thì trừ điểm nặng
-                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 20 : -15);
+                // Phạt cực nặng nước đi sai dẫn đến thua
+                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 30 : -50);
             });
             set(ref(db, 'brain'), brainData);
         }
 
         function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "Trận đấu bắt đầu!"; };
+        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "Chiến thôi!"; };
     </script>
 </body>
 </html>
