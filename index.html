@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Caro 12x12 - VS Super Bot</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; }
+        #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #999; border: 2px solid #333; margin-top: 20px; }
+        .cell { width: 35px; height: 35px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; cursor: pointer; }
+        .cell.x { color: red; }
+        .cell.o { color: blue; }
+        .cell.taken { cursor: not-allowed; }
+        .controls { margin-top: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Caro 12x12: Bro vs Bot</h1>
+    <div class="controls">
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div id="board"></div>
+    <h2 id="status"></h2>
+
+    <script src="script.js"></script>
+</body>
+</html>
