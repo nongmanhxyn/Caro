@@ -80,10 +80,8 @@
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
                     if (!board[r][c]) {
-                        // Tính toán theo chiến thuật học hỏi từ mạng
                         let score = evaluateUltra(r, c);
-                        // Nhân hệ số kinh nghiệm Cloud cực gắt
-                        score += (brainData[`${r}_${c}`] || 0) * 150;
+                        score += (brainData[`${r}_${c}`] || 0) * 200; // Tăng ảnh hưởng từ Cloud
 
                         if (score > bestScore) {
                             bestScore = score;
@@ -111,42 +109,38 @@
                 let sO = getPointScore(r, c, dr, dc, 'O'); 
                 let sX = getPointScore(r, c, dr, dc, 'X'); 
                 
-                if (sO >= 50000) myThreats++;
-                if (sX >= 50000) enemyThreats++;
+                if (sO >= 100000) myThreats++;
+                if (sX >= 100000) enemyThreats++;
 
-                // Ưu tiên THỦ lên tới 2.0 (Gấp đôi tấn công để chống bẫy)
-                score += sO + sX * 2.0; 
+                // Hệ số THỦ 2.5: Chặn bẫy của bro là ưu tiên số 1
+                score += sO + sX * 2.5; 
             });
 
-            // Nếu phát hiện m có bẫy kép, nó sẽ ưu tiên phá vị trí quan trọng nhất
-            if (enemyThreats >= 2) score += 500000;
-            // Nếu nó có cơ hội tạo bẫy kép, nó sẽ không bỏ qua
-            if (myThreats >= 2) score += 400000; 
-
+            if (enemyThreats >= 2) score += 1000000; // Phá bẫy đôi của m
+            if (myThreats >= 2) score += 800000;   // Chủ động tạo bẫy đôi cho nó
             return score;
         }
 
         function getPointScore(r, c, dr, dc, p) {
-            let count = 0, open = 0, space = 0;
+            let count = 0, open = 0, gap = 0;
             
-            // Quét 2 chiều để đánh giá tổng thể đường cờ
             [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
                 let nr = r + tr, nc = c + tc;
                 while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=tr; nc+=tc; }
                 if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) { 
                     open++;
-                    // Quét thêm 1 ô trống nữa để tìm bẫy cách quãng
+                    // Logic bẫy cách quãng X_XX hoặc XX_X
                     let nr2 = nr + tr, nc2 = nc + tc;
-                    if(nr2>=0 && nr2<SIZE && nc2>=0 && nc2<SIZE && board[nr2][nc2] === p) space = 1;
+                    if(nr2>=0 && nr2<SIZE && nc2>=0 && nc2<SIZE && board[nr2][nc2] === p) gap = 1;
                 }
             });
 
-            if (count >= 4) return 1000000;
-            if (count === 3 && open === 2) return 80000; // 3 hở 2 đầu là bẫy tử thần
-            if (count === 3 && open === 1) return 20000;
-            if (count === 2 && open === 2) return 10000;
-            if (space === 1 && count >= 2) return 7000; // Phát hiện bẫy cách quãng (X-XX)
-            return count * 500;
+            if (count >= 4) return 2000000; // Sắp thắng, đánh ngay
+            if (count === 3 && open === 2) return 150000; // Bẫy 3 hở 2 đầu
+            if (count === 3 && open === 1) return 30000;
+            if (gap === 1 && count >= 2) return 60000; // Bẫy cách quãng thâm độc
+            if (count === 2 && open === 2) return 15000;
+            return count * 1000;
         }
 
         function makeMove(r, c, p) {
@@ -170,8 +164,8 @@
         function saveToCloud(winner) {
             history.forEach(m => {
                 let key = `${m.r}_${m.c}`;
-                // Trừng phạt lỗi dẫn đến thua cực kỳ tàn nhẫn (-100)
-                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 50 : -100);
+                // Trừng phạt lỗi thua gấp đôi (-200)
+                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 100 : -200);
             });
             set(ref(db, 'brain'), brainData);
         }
