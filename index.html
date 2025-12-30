@@ -2,24 +2,28 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Caro AI Cloud - Final Boss</title>
+    <title>Caro AI Cloud - Độc Cô Cầu Bại</title>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #333; padding: 5px; border-radius: 5px; border: 2px solid #555; }
-        .cell { width: 35px; height: 35px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .cell:hover { background: #444; transform: scale(1.05); }
-        .cell.X { color: #ff4757; text-shadow: 0 0 10px rgba(255, 71, 87, 0.5); }
-        .cell.O { color: #2e9eff; text-shadow: 0 0 10px rgba(46, 158, 255, 0.5); }
-        .controls { margin-bottom: 20px; text-align: center; }
-        button { padding: 12px 30px; font-size: 18px; cursor: pointer; background: #2ed573; color: white; border: none; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.3); }
-        #status { margin-top: 15px; font-weight: bold; color: #eccc68; height: 24px; letter-spacing: 1px; }
+        body { background: #0f0f0f; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        #board { display: grid; grid-template-columns: repeat(12, 38px); gap: 3px; background: #333; padding: 10px; border-radius: 12px; border: 3px solid #444; box-shadow: 0 0 50px rgba(0,255,100,0.1); }
+        .cell { width: 38px; height: 38px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; cursor: pointer; transition: 0.15s; border-radius: 5px; }
+        .cell:hover { background: #252525; box-shadow: inset 0 0 10px rgba(255,255,255,0.1); }
+        .cell.X { color: #ff3e3e; text-shadow: 0 0 15px #ff3e3e; }
+        .cell.O { color: #00d2ff; text-shadow: 0 0 15px #00d2ff; }
+        .last-move { border: 2px solid #00ff88 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .controls { margin-bottom: 30px; text-align: center; }
+        h1 { font-size: 2.8em; margin: 0; color: #00ff88; text-transform: uppercase; letter-spacing: 3px; }
+        button { padding: 15px 45px; font-size: 22px; cursor: pointer; background: #00ff88; color: #000; border: none; border-radius: 8px; font-weight: 900; transition: 0.4s; text-transform: uppercase; }
+        button:hover { background: #00cc6e; transform: scale(1.1); box-shadow: 0 0 30px rgba(0,255,136,0.5); }
+        #status { margin-top: 20px; font-size: 1.3em; font-weight: bold; color: #00ff88; text-shadow: 0 0 5px #000; }
     </style>
 </head>
 <body>
     <div class="controls">
-        <h1>CARO AI FINAL BOSS</h1>
-        <button id="startBtn">PHỤC THÙ NGAY</button>
-        <div id="status">Đang nạp dữ liệu tối thượng...</div>
+        <h1>CARO SÁT THỦ V5</h1>
+        <button id="startBtn">GIAO CHIẾN</button>
+        <div id="status">Đang tải tuyệt kỹ từ Internet...</div>
     </div>
     <div id="board"></div>
 
@@ -38,7 +42,7 @@
             try {
                 const snapshot = await get(child(ref(db), 'brain'));
                 if (snapshot.exists()) brainData = snapshot.val();
-                document.getElementById('status').innerText = "Final Boss đã sẵn sàng!";
+                document.getElementById('status').innerText = "Kỹ thuật thượng thừa đã nạp!";
             } catch (e) { document.getElementById('status').innerText = "Offline Mode"; }
         }
         loadBrain();
@@ -61,28 +65,25 @@
             if (isGameOver || board[r][c]) return;
             makeMove(r, c, 'X');
             if (checkWin(r, c, 'X')) {
-                endGame("GG WP! Bro quá đỉnh!");
+                endGame("BRO LÀ THÁNH CARO RỒI!");
                 saveToCloud('X');
             } else {
-                document.getElementById('status').innerText = "Bot đang đọc tâm lý...";
-                setTimeout(botMove, 400);
+                document.getElementById('status').innerText = "Bot đang phân tích bẫy...";
+                setTimeout(botMove, 300);
             }
         };
 
         function botMove() {
             if (isGameOver) return;
-            let bestScore = -Infinity;
-            let move = null;
+            let bestScore = -Infinity, move = null;
 
-            // Thuật toán quét điểm thông minh (Heuristic nâng cao)
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
                     if (!board[r][c]) {
-                        // Tính toán độ nguy hiểm của vị trí
-                        let score = evaluatePosition(r, c);
-                        
-                        // Kinh nghiệm từ Cloud (nhân hệ số cực lớn để nó không quên lỗi cũ)
-                        score += (brainData[`${r}_${c}`] || 0) * 100;
+                        // Tính toán theo chiến thuật học hỏi từ mạng
+                        let score = evaluateUltra(r, c);
+                        // Nhân hệ số kinh nghiệm Cloud cực gắt
+                        score += (brainData[`${r}_${c}`] || 0) * 150;
 
                         if (score > bestScore) {
                             bestScore = score;
@@ -95,64 +96,68 @@
             if (move) {
                 makeMove(move.r, move.c, 'O');
                 if (checkWin(move.r, move.c, 'O')) {
-                    endGame("Bot thắng! Trận đấu kết thúc.");
+                    endGame("Bot thắng! Quá non và xanh.");
                     saveToCloud('O');
                 } else { document.getElementById('status').innerText = "Đến lượt bro!"; }
             }
         }
 
-        function evaluatePosition(r, c) {
-            let score = Math.random() * 20; // Chút biến ảo
+        function evaluateUltra(r, c) {
+            let score = Math.random() * 50; 
+            let myThreats = 0, enemyThreats = 0;
             const directions = [[1,0], [0,1], [1,1], [1,-1]];
 
             directions.forEach(([dr, dc]) => {
-                let sO = getAdvScore(r, c, dr, dc, 'O'); // Công
-                let sX = getAdvScore(r, c, dr, dc, 'X'); // Thủ
+                let sO = getPointScore(r, c, dr, dc, 'O'); 
+                let sX = getPointScore(r, c, dr, dc, 'X'); 
                 
-                // Siêu thâm: Nếu m có nước đi tạo bẫy, nó sẽ ưu tiên chặn hơn cả tấn công
-                score += sO + sX * 1.5; 
+                if (sO >= 50000) myThreats++;
+                if (sX >= 50000) enemyThreats++;
+
+                // Ưu tiên THỦ lên tới 2.0 (Gấp đôi tấn công để chống bẫy)
+                score += sO + sX * 2.0; 
             });
+
+            // Nếu phát hiện m có bẫy kép, nó sẽ ưu tiên phá vị trí quan trọng nhất
+            if (enemyThreats >= 2) score += 500000;
+            // Nếu nó có cơ hội tạo bẫy kép, nó sẽ không bỏ qua
+            if (myThreats >= 2) score += 400000; 
+
             return score;
         }
 
-        function getAdvScore(r, c, dr, dc, p) {
-            let count = 0, openEnds = 0, gap = 0;
+        function getPointScore(r, c, dr, dc, p) {
+            let count = 0, open = 0, space = 0;
             
-            // Logic quét xa hơn để phát hiện bẫy cách quãng
-            for(let i=1; i<=4; i++) {
-                let nr = r + dr*i, nc = c + dc*i;
-                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
-                    if(board[nr][nc] === p) count++;
-                    else if(!board[nr][nc]) { openEnds++; break; }
-                    else { break; }
+            // Quét 2 chiều để đánh giá tổng thể đường cờ
+            [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
+                let nr = r + tr, nc = c + tc;
+                while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=tr; nc+=tc; }
+                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) { 
+                    open++;
+                    // Quét thêm 1 ô trống nữa để tìm bẫy cách quãng
+                    let nr2 = nr + tr, nc2 = nc + tc;
+                    if(nr2>=0 && nr2<SIZE && nc2>=0 && nc2<SIZE && board[nr2][nc2] === p) space = 1;
                 }
-            }
-            for(let i=1; i<=4; i++) {
-                let nr = r - dr*i, nc = c - dc*i;
-                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
-                    if(board[nr][nc] === p) count++;
-                    else if(!board[nr][nc]) { openEnds++; break; }
-                    else { break; }
-                }
-            }
+            });
 
-            // Bảng điểm bẫy chuyên nghiệp
             if (count >= 4) return 1000000;
-            if (count === 3) return openEnds === 2 ? 50000 : 5000;
-            if (count === 2) return openEnds === 2 ? 1000 : 100;
-            return count * 10;
+            if (count === 3 && open === 2) return 80000; // 3 hở 2 đầu là bẫy tử thần
+            if (count === 3 && open === 1) return 20000;
+            if (count === 2 && open === 2) return 10000;
+            if (space === 1 && count >= 2) return 7000; // Phát hiện bẫy cách quãng (X-XX)
+            return count * 500;
         }
 
         function makeMove(r, c, p) {
-            board[r][c] = p;
-            history.push({r, c, p});
+            board[r][c] = p; history.push({r, c, p});
+            document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move'));
             const el = document.getElementById(`c-${r}-${c}`);
-            el.innerText = p; el.classList.add(p);
+            el.innerText = p; el.classList.add(p, 'last-move');
         }
 
         function checkWin(r, c, p) {
-            const dirs = [[1,0], [0,1], [1,1], [1,-1]];
-            return dirs.some(([dr, dc]) => {
+            return [[1,0], [0,1], [1,1], [1,-1]].some(([dr, dc]) => {
                 let cnt = 1;
                 [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
                     let nr = r+tr, nc = c+tc;
@@ -165,8 +170,8 @@
         function saveToCloud(winner) {
             history.forEach(m => {
                 let key = `${m.r}_${m.c}`;
-                // Phạt cực nặng nước đi sai dẫn đến thua
-                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 30 : -50);
+                // Trừng phạt lỗi dẫn đến thua cực kỳ tàn nhẫn (-100)
+                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 50 : -100);
             });
             set(ref(db, 'brain'), brainData);
         }
