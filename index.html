@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Caro AI Cloud - Sát Thủ Bẫy</title>
+    <title>Caro AI Cloud - Sát Thủ Vô Đối</title>
     <style>
         body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         #board { display: grid; grid-template-columns: repeat(12, 35px); gap: 2px; background: #333; padding: 5px; border-radius: 5px; border: 2px solid #555; }
@@ -17,7 +17,7 @@
 </head>
 <body>
     <div class="controls">
-        <h1>CARO AI SÁT THỦ</h1>
+        <h1>CARO AI SÁT THỦ V2</h1>
         <button id="startBtn">BẮT ĐẦU CHIẾN</button>
         <div id="status">Đang kết nối Cloud...</div>
     </div>
@@ -32,7 +32,7 @@
         const db = getDatabase(app);
 
         const SIZE = 12;
-        let board = [], brainData = {}, isGameOver = true;
+        let board = [], history = [], brainData = {}, isGameOver = true;
 
         async function loadBrain() {
             try {
@@ -60,10 +60,12 @@
         window.playerMove = (r, c) => {
             if (isGameOver || board[r][c]) return;
             makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) { endGame("GG WP! Bro quá đỉnh!"); }
-            else {
+            if (checkWin(r, c, 'X')) {
+                endGame("GG WP! Bro quá đỉnh!");
+                saveToCloud('X');
+            } else {
                 document.getElementById('status').innerText = "Bot đang soi trap...";
-                setTimeout(botMove, 300);
+                setTimeout(botMove, 400);
             }
         };
 
@@ -72,13 +74,16 @@
             let bestScore = -Infinity;
             let move = null;
 
-            // Chỉ tính những ô gần các quân đã đánh để tăng tốc độ
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
-                    if (!board[r][c] && hasNeighbor(r, c)) {
+                    if (!board[r][c]) {
+                        // Tính điểm công và thủ kết hợp
                         let score = evaluatePoint(r, c);
-                        // Cộng thêm điểm từ kinh nghiệm Cloud (ghi nhớ trap cũ)
-                        score += (brainData[`${r}_${c}`] || 0) * 50;
+                        
+                        // Cộng hưởng điểm từ Cloud (Ghi nhớ những chỗ bro hay đặt trap)
+                        if (brainData[`${r}_${c}`]) {
+                            score += brainData[`${r}_${c}`] * 30;
+                        }
 
                         if (score > bestScore) {
                             bestScore = score;
@@ -90,66 +95,58 @@
 
             if (move) {
                 makeMove(move.r, move.c, 'O');
-                if (checkWin(move.r, move.c, 'O')) { endGame("Bot thắng! Trận đấu kết thúc."); }
-                else { document.getElementById('status').innerText = "Đến lượt bro!"; }
+                if (checkWin(move.r, move.c, 'O')) {
+                    endGame("Bot thắng! Trận đấu kết thúc.");
+                    saveToCloud('O');
+                } else { document.getElementById('status').innerText = "Đến lượt bro!"; }
             }
         }
 
-        function hasNeighbor(r, c) {
-            for (let i=-1; i<=1; i++) {
-                for (let j=-1; j<=1; j++) {
-                    let nr = r+i, nc = c+j;
-                    if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) return true;
-                }
-            }
-            return false;
-        }
-
-        // HÀM CHẤM ĐIỂM SIÊU THÂM ĐỘC
         function evaluatePoint(r, c) {
-            let score = 0;
+            let attackScore = 0;
+            let defenseScore = 0;
             const directions = [[1,0], [0,1], [1,1], [1,-1]];
-            
+
             directions.forEach(([dr, dc]) => {
-                let scoreO = getLineScore(r, c, dr, dc, 'O'); // Điểm tấn công
-                let scoreX = getLineScore(r, c, dr, dc, 'X'); // Điểm phòng thủ
-                
-                // Nếu người chơi có thế mạnh, ưu tiên chặn (phòng thủ)
-                // Nếu Bot có thế mạnh, ưu tiên dứt điểm (tấn công)
-                score += scoreO + scoreX;
+                attackScore += getLineScore(r, c, dr, dc, 'O'); // Bot tấn công
+                defenseScore += getLineScore(r, c, dr, dc, 'X'); // Bot phòng thủ (chặn người)
             });
-            return score;
+
+            // Nếu điểm phòng thủ cao (người chơi sắp có trap) thì ưu tiên chặn gấp
+            // Nếu không thì tập trung tấn công để tạo trap
+            return attackScore + defenseScore * 1.2; 
         }
 
         function getLineScore(r, c, dr, dc, p) {
-            let count = 0, blocks = 0;
+            let count = 0, openEnds = 0;
             
-            // Đếm xuôi
+            // Hướng 1
             let nr = r + dr, nc = c + dc;
             while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=dr; nc+=dc; }
-            if (nr<0 || nr>=SIZE || nc<0 || nc>=SIZE || (board[nr][nc] && board[nr][nc] !== p)) blocks++;
+            if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) openEnds++;
 
-            // Đếm ngược
+            // Hướng 2
             nr = r - dr; nc = c - dc;
             while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr-=dr; nc-=dc; }
-            if (nr<0 || nr>=SIZE || nc<0 || nc>=SIZE || (board[nr][nc] && board[nr][nc] !== p)) blocks++;
+            if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) openEnds++;
 
-            // Bảng điểm chuẩn "Sát thủ"
-            if (count >= 4) return 100000; // Thắng tới nơi
-            if (blocks === 0) {
-                if (count === 3) return 50000; // Trap 3 hở 2 đầu (cực nguy hiểm)
-                if (count === 2) return 5000;  
-                if (count === 1) return 100;
-            } else if (blocks === 1) {
-                if (count === 3) return 10000;
-                if (count === 2) return 500;
-                if (count === 1) return 10;
+            // Bảng điểm "Sát Thủ" - Ưu tiên cực cao cho các thế cờ hở 2 đầu
+            if (count >= 4) return 100000; // Sắp thắng
+            if (count === 3) {
+                if (openEnds === 2) return 10000; // Thế 3 hở 2 đầu (Trap chết người)
+                if (openEnds === 1) return 1000;
             }
+            if (count === 2) {
+                if (openEnds === 2) return 500;
+                if (openEnds === 1) return 100;
+            }
+            if (count === 1) return openEnds === 2 ? 50 : 10;
             return 0;
         }
 
         function makeMove(r, c, p) {
             board[r][c] = p;
+            history.push({r, c, p});
             const el = document.getElementById(`c-${r}-${c}`);
             el.innerText = p; el.classList.add(p);
         }
@@ -162,12 +159,21 @@
                     let nr = r+tr, nc = c+tc;
                     while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { cnt++; nr+=tr; nc+=tc; }
                 });
-                return cnt >= 5; // Đánh 5 quân mới thắng cho chuẩn luật
+                return cnt >= 5;
             });
         }
 
+        function saveToCloud(winner) {
+            history.forEach(m => {
+                let key = `${m.r}_${m.c}`;
+                // Lưu lại nước đi: Nếu giúp thắng thì cộng điểm, thua thì trừ điểm nặng
+                brainData[key] = (brainData[key] || 0) + (m.p === winner ? 20 : -15);
+            });
+            set(ref(db, 'brain'), brainData);
+        }
+
         function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = () => { isGameOver = false; initBoard(); document.getElementById('status').innerText = "Trận đấu bắt đầu!"; };
+        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "Trận đấu bắt đầu!"; };
     </script>
 </body>
 </html>
