@@ -2,255 +2,30 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>CARO V25 - THE MONSTER ENGINE</title>
-    <style>
-        :root { --neon: #00ff88; --danger: #ff3e3e; --info: #00e5ff; }
-        body { background: #020202; color: #fff; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        #board { display: grid; grid-template-columns: repeat(12, 42px); gap: 1px; background: #222; padding: 10px; border: 4px solid var(--neon); box-shadow: 0 0 40px rgba(0,255,136,0.3); }
-        .cell { width: 42px; height: 42px; background: #000; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; cursor: pointer; border: 1px solid #111; position: relative; }
-        .cell:hover { background: #0a110d; border: 1px solid var(--neon); }
-        .cell.X { color: var(--danger); text-shadow: 0 0 10px var(--danger); }
-        .cell.O { color: var(--info); text-shadow: 0 0 10px var(--info); }
-        .last-move { border: 1px solid #fff !important; background: #151515 !important; box-shadow: inset 0 0 10px #fff; }
-        .controls { margin-bottom: 15px; text-align: center; }
-        button { padding: 12px 40px; font-size: 20px; cursor: pointer; background: var(--neon); color: #000; border: none; font-weight: bold; border-radius: 4px; text-transform: uppercase; }
-        #status { margin-top: 10px; font-size: 1.2em; color: var(--neon); font-weight: bold; height: 1.5em; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEVIATHAN AI V29 - OVERLORD</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="controls">
-        <h1>CARO V25: THE MONSTER</h1>
-        <button id="startBtn">GIAO CHIẾN</button>
-        <div id="status">Hệ thống đang nạp 1000+ dòng tư duy...</div>
+    <div class="cyber-container">
+        <header>
+            <h1>🔱 LEVIATHAN AI <span class="v-tag">V29</span></h1>
+            <div id="status-bar">SYSTEM READY: WAITING FOR TARGET...</div>
+        </header>
+
+        <main>
+            <div id="board" class="neon-grid"></div>
+        </main>
+
+        <aside class="control-panel">
+            <div class="stat-box">
+                <p>AI STATE: <span id="ai-mode">IDLE</span></p>
+                <p>DANGER LEVEL: <span id="danger-meter">0%</span></p>
+            </div>
+            <button id="reset-btn">REBOOT SYSTEM</button>
+        </aside>
     </div>
-    <div id="board"></div>
 
-    <script type="module">
-        const SIZE = 12;
-        let board = [], isGameOver = true;
-        const DIRS = [[1,0], [0,1], [1,1], [1,-1]];
-
-        // ======================================================
-        // I. MODULE PHÂN TÍCH CHI TIẾT (DEEP SCAN)
-        // ======================================================
-        
-        // 1. NHẬN DẠNG BẪY CHỮ L (L-TRAP)
-        // Dấu hiệu: 2 quân tạo góc vuông, cách nhau 1 ô trống ở đỉnh
-        function detectLTrap(r, c, p) {
-            let count = 0;
-            const checks = [
-                {r1: -1, c1: 0, r2: 0, c2: 1}, // L hướng lên phải
-                {r1: -1, c1: 0, r2: 0, c2: -1}, // L hướng lên trái
-                {r1: 1, c1: 0, r2: 0, c2: 1}, // L hướng xuống phải
-                {r1: 1, c1: 0, r2: 0, c2: -1}  // L hướng xuống trái
-            ];
-            checks.forEach(pos => {
-                if (board[r+pos.r1]?.[c+pos.c1] === p && board[r+pos.r2]?.[c+pos.c2] === p) {
-                    count++;
-                }
-            });
-            return count * 150000; 
-        }
-
-        // 2. NHẬN DẠNG BẪY CHUỖI GÃY (TRAP 9 - BROKEN CHAIN)
-        // Dấu hiệu: X . X X hoặc X X . X
-        function detectBrokenChain(r, c, dr, dc, p) {
-            let score = 0;
-            // Case 1: p p (c) . p
-            if (board[r+dr]?.[c+dc] === p && board[r-dr]?.[c-dc] === p && board[r-2*dr]?.[c-2*dc] === null && board[r-3*dr]?.[c-3*dc] === p) {
-                score += 200000;
-            }
-            // Case 2: p . (c) p p
-            if (board[r-dr]?.[c-dc] === null && board[r-2*dr]?.[c-2*dc] === p && board[r+dr]?.[c+dc] === p && board[r+2*dr]?.[c+2*dc] === p) {
-                score += 200000;
-            }
-            return score;
-        }
-
-        // 3. NHẬN DẠNG FORK TỬ THẦN (3-3, 3-4)
-        // Đếm chính xác số lượng đường 3 hở hoặc 4 bị chặn 1 đầu
-        function countThreats(r, c, p) {
-            let open3 = 0, blocked4 = 0, open4 = 0;
-            DIRS.forEach(([dr, dc]) => {
-                let stats = getLineStats(r, c, dr, dc, p);
-                if (stats.count >= 4) open4++;
-                else if (stats.count === 3 && stats.open === 2) open3++;
-                else if (stats.count === 3 && stats.open === 1) blocked4++;
-            });
-            return { open3, blocked4, open4 };
-        }
-
-        // 4. NHẬN DẠNG TAM GIÁC TỬ THẦN (DEATH TRIANGLE)
-        function detectTriangle(r, c, p) {
-            let triangleFound = false;
-            // Kiểm tra 3 điểm tạo thành tam giác vuông cân hoặc tam giác đều
-            const pts = [[-1,0], [0,1], [1,1], [1,0], [0,-1], [-1,-1]];
-            for(let i=0; i<pts.length; i++) {
-                let p1 = pts[i];
-                let p2 = pts[(i+1)%pts.length];
-                if (board[r+p1[0]]?.[c+p1[1]] === p && board[r+p2[0]]?.[c+p2[1]] === p) {
-                    triangleFound = true; break;
-                }
-            }
-            return triangleFound ? 300000 : 0;
-        }
-
-        // ======================================================
-        // II. MODULE PHÒNG THỦ CHIẾN LƯỢC (DEFENSE MASTER)
-        // ======================================================
-
-        function evaluateDefense(r, c) {
-            let p = 'X'; // Soi nước của Player
-            let score = 0;
-            let threats = countThreats(r, c, p);
-
-            // NGUYÊN TẮC: Open Four là tuyệt đối phải chặn
-            if (threats.open4 > 0) score += 1000000000;
-
-            // NGUYÊN TẮC: Cắt Fork (3-3, 3-4) - Đây là Root Block
-            if (threats.open3 >= 2) score += 900000000; 
-            if (threats.open3 >= 1 && threats.blocked4 >= 1) score += 850000000;
-
-            // NGUYÊN TẮC: Chặn Open 3 hở 2 đầu ngay từ đầu
-            if (threats.open3 === 1) score += 100000000;
-
-            // NGUYÊN TẮC: Thoát bẫy chéo mù
-            DIRS.slice(2).forEach(([dr, dc]) => {
-                let stats = getLineStats(r, c, dr, dc, p);
-                if (stats.count >= 2 && stats.open === 2) score += 50000000;
-            });
-
-            // NGUYÊN TẮC: Chặn bẫy hình học
-            score += detectLTrap(r, c, p);
-            score += detectTriangle(r, c, p);
-
-            return score;
-        }
-
-        // ======================================================
-        // III. MODULE TẤN CÔNG (AGGRESSIVE KILLER)
-        // ======================================================
-
-        function evaluateAttack(r, c) {
-            let p = 'O'; // Bot tấn công
-            let score = 0;
-            let threats = countThreats(r, c, p);
-
-            if (threats.open4 > 0) score += 1100000000; // Ưu tiên kết liễu
-            if (threats.open3 >= 2) score += 950000000; // Tạo Double Three
-            if (threats.open3 >= 1) score += 200000000; // Ép đối thủ thủ
-
-            // Gài bẫy Meta
-            score += detectLTrap(r, c, p);
-            score += detectBrokenChain(r, c, 1, 0, p);
-            score += detectTriangle(r, c, p);
-
-            // Đánh sát trung tâm (Positioning)
-            let dist = Math.sqrt(Math.pow(r-5.5, 2) + Math.pow(c-5.5, 2));
-            score += (6 - dist) * 10000;
-
-            return score;
-        }
-
-        // ======================================================
-        // IV. ENGINE CORE - XỬ LÝ NƯỚC ĐI
-        // ======================================================
-
-        function getLineStats(r, c, dr, dc, p) {
-            let count = 0, open = 0, gap = 0;
-            [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
-                let nr = r + tr, nc = c + tc, g = false;
-                for (let i = 0; i < 4; i++) {
-                    if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) break;
-                    if (board[nr][nc] === p) { count++; if(g) gap++; }
-                    else if (board[nr][nc] === null) { 
-                        open++; if(!g) { g=true; nr+=tr; nc+=tc; continue; } break; 
-                    } else break;
-                    nr += tr; nc += tc;
-                }
-            });
-            return { count, open, gap };
-        }
-
-        function botMove() {
-            if (isGameOver) return;
-            let bestScore = -Infinity, move = null;
-
-            // Quét từng ô trống trên bàn cờ
-            for (let r = 0; r < SIZE; r++) {
-                for (let c = 0; c < SIZE; c++) {
-                    if (!board[r][c]) {
-                        // AI Đại kiện tướng: Tổng hợp Công và Thủ
-                        let attack = evaluateAttack(r, c);
-                        let defense = evaluateDefense(r, c);
-                        
-                        // "Phòng thủ tốt = ép đối thủ thủ lại"
-                        // Trọng số Defense cao hơn để không bị ngáo trap
-                        let total = attack + (defense * 1.6); 
-
-                        if (total > bestScore) {
-                            bestScore = total;
-                            move = {r, c};
-                        }
-                    }
-                }
-            }
-
-            if (move) {
-                makeMove(move.r, move.c, 'O');
-                if (checkWin(move.r, move.c, 'O')) endGame("V25: ZUGZWANG! M ĐÃ RƠI VÀO TỬ LỘ.");
-                else document.getElementById('status').innerText = "Đến lượt m...";
-            }
-        }
-
-        // --- CÁC HÀM UI ---
-        function initBoard() {
-            board = Array(SIZE).fill(null).map(() => Array(SIZE).fill(null));
-            const b = document.getElementById('board'); b.innerHTML = '';
-            for (let r = 0; r < SIZE; r++) {
-                for (let c = 0; c < SIZE; c++) {
-                    const el = document.createElement('div');
-                    el.className = 'cell'; el.id = `c-${r}-${c}`;
-                    el.onclick = () => playerMove(r, c);
-                    b.appendChild(el);
-                }
-            }
-            isGameOver = false;
-            document.getElementById('status').innerText = "V25: Trận đấu bắt đầu!";
-        }
-
-        function playerMove(r, c) {
-            if (isGameOver || board[r][c]) return;
-            makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) endGame("V25: MÀN TRÌNH DIỄN XUẤT SẮC!");
-            else { 
-                document.getElementById('status').innerText = "V25 đang phân tích Trap..."; 
-                setTimeout(botMove, 100); 
-            }
-        }
-
-        function makeMove(r, c, p) {
-            board[r][c] = p;
-            document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move'));
-            const cell = document.getElementById(`c-${r}-${c}`);
-            cell.innerText = p; cell.classList.add(p, 'last-move');
-        }
-
-        function checkWin(r, c, p) {
-            return DIRS.some(([dr, dc]) => {
-                let cnt = 1;
-                [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
-                    let nr = r + tr, nc = c + tc;
-                    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p) {
-                        cnt++; nr += tr; nc += tc;
-                    }
-                });
-                return cnt >= 5;
-            });
-        }
-
-        function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = initBoard;
-    </script>
+    <script type="module" src="./src/core/Game_Core.js"></script>
 </body>
 </html>
