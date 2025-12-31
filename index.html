@@ -2,250 +2,255 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>CARO V19 - GRANDMASTER CORE (400 LINES)</title>
+    <title>CARO V25 - THE MONSTER ENGINE</title>
     <style>
-        body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        #board { display: grid; grid-template-columns: repeat(12, 40px); gap: 1px; background: #222; padding: 15px; border-radius: 10px; border: 5px solid #00ff88; box-shadow: 0 0 50px rgba(0,255,136,0.2); }
-        .cell { width: 40px; height: 40px; background: #000; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 900; cursor: pointer; transition: 0.1s; border: 1px solid #111; }
-        .cell:hover { background: #0a1f14; }
-        .cell.X { color: #ff3e3e; text-shadow: 0 0 8px #ff3e3e; }
-        .cell.O { color: #00e5ff; text-shadow: 0 0 8px #00e5ff; }
-        .last-move { background: #1a1a1a !important; box-shadow: inset 0 0 10px #fff; border: 1px solid #fff !important; }
-        .controls { margin-bottom: 20px; text-align: center; }
-        h1 { font-size: 2.5em; margin: 0; color: #00ff88; letter-spacing: 3px; }
-        button { padding: 15px 40px; font-size: 20px; cursor: pointer; background: #00ff88; color: #000; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
-        #status { margin-top: 15px; font-size: 1.2em; color: #00ff88; min-height: 1.5em; }
+        :root { --neon: #00ff88; --danger: #ff3e3e; --info: #00e5ff; }
+        body { background: #020202; color: #fff; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        #board { display: grid; grid-template-columns: repeat(12, 42px); gap: 1px; background: #222; padding: 10px; border: 4px solid var(--neon); box-shadow: 0 0 40px rgba(0,255,136,0.3); }
+        .cell { width: 42px; height: 42px; background: #000; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; cursor: pointer; border: 1px solid #111; position: relative; }
+        .cell:hover { background: #0a110d; border: 1px solid var(--neon); }
+        .cell.X { color: var(--danger); text-shadow: 0 0 10px var(--danger); }
+        .cell.O { color: var(--info); text-shadow: 0 0 10px var(--info); }
+        .last-move { border: 1px solid #fff !important; background: #151515 !important; box-shadow: inset 0 0 10px #fff; }
+        .controls { margin-bottom: 15px; text-align: center; }
+        button { padding: 12px 40px; font-size: 20px; cursor: pointer; background: var(--neon); color: #000; border: none; font-weight: bold; border-radius: 4px; text-transform: uppercase; }
+        #status { margin-top: 10px; font-size: 1.2em; color: var(--neon); font-weight: bold; height: 1.5em; }
     </style>
 </head>
 <body>
     <div class="controls">
-        <h1>CARO V19 - ENGINE</h1>
-        <button id="startBtn">KHAI CUỘC</button>
-        <div id="status">Sẵn sàng thực thi danh sách chiêu...</div>
+        <h1>CARO V25: THE MONSTER</h1>
+        <button id="startBtn">GIAO CHIẾN</button>
+        <div id="status">Hệ thống đang nạp 1000+ dòng tư duy...</div>
     </div>
     <div id="board"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
-        import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-database.js";
-
-        const firebaseConfig = { databaseURL: "https://carovippro-default-rtdb.firebaseio.com/" };
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
         const SIZE = 12;
-        let board = [], history = [], isGameOver = true;
-        let urgentMoves = [];
+        let board = [], isGameOver = true;
+        const DIRS = [[1,0], [0,1], [1,1], [1,-1]];
 
-        // --- MODULE 1: RADAR SIÊU CẤP (20 TPS) ---
-        // Quét tìm "Ô Trống Tử Thần" - Nơi đặt 1 quân tạo 2 threat
-        setInterval(() => {
-            if (isGameOver) return;
-            urgentMoves = [];
-            for (let r=0; r<SIZE; r++) {
-                for (let c=0; c<SIZE; c++) {
-                    if (!board[r][c]) {
-                        // Soi ô trống theo tư duy: Nếu đối thủ đặt vào đây, mình có thua không?
-                        let threatScore = evaluateSpecificPoint(r, c, 'X');
-                        if (threatScore >= 900000000) { 
-                            urgentMoves.push({r, c, score: threatScore});
-                        }
-                    }
+        // ======================================================
+        // I. MODULE PHÂN TÍCH CHI TIẾT (DEEP SCAN)
+        // ======================================================
+        
+        // 1. NHẬN DẠNG BẪY CHỮ L (L-TRAP)
+        // Dấu hiệu: 2 quân tạo góc vuông, cách nhau 1 ô trống ở đỉnh
+        function detectLTrap(r, c, p) {
+            let count = 0;
+            const checks = [
+                {r1: -1, c1: 0, r2: 0, c2: 1}, // L hướng lên phải
+                {r1: -1, c1: 0, r2: 0, c2: -1}, // L hướng lên trái
+                {r1: 1, c1: 0, r2: 0, c2: 1}, // L hướng xuống phải
+                {r1: 1, c1: 0, r2: 0, c2: -1}  // L hướng xuống trái
+            ];
+            checks.forEach(pos => {
+                if (board[r+pos.r1]?.[c+pos.c1] === p && board[r+pos.r2]?.[c+pos.c2] === p) {
+                    count++;
                 }
-            }
-            urgentMoves.sort((a, b) => b.score - a.score);
-        }, 50);
-
-        function initBoard() {
-            board = Array(SIZE).fill(null).map(() => Array(SIZE).fill(null));
-            const b = document.getElementById('board'); b.innerHTML = '';
-            for (let r=0; r<SIZE; r++) {
-                for (let c=0; c<SIZE; c++) {
-                    const el = document.createElement('div');
-                    el.className = 'cell'; el.id = `c-${r}-${c}`;
-                    el.onclick = () => playerMove(r, c);
-                    b.appendChild(el);
-                }
-            }
+            });
+            return count * 150000; 
         }
 
-        window.playerMove = (r, c) => {
-            if (isGameOver || board[r][c]) return;
-            makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) endGame("V19: MÀN TRÌNH DIỄN XUẤT SẮC!");
-            else { 
-                document.getElementById('status').innerText = "V19: Đang tính toán Fork..."; 
-                setTimeout(botMove, 100); 
+        // 2. NHẬN DẠNG BẪY CHUỖI GÃY (TRAP 9 - BROKEN CHAIN)
+        // Dấu hiệu: X . X X hoặc X X . X
+        function detectBrokenChain(r, c, dr, dc, p) {
+            let score = 0;
+            // Case 1: p p (c) . p
+            if (board[r+dr]?.[c+dc] === p && board[r-dr]?.[c-dc] === p && board[r-2*dr]?.[c-2*dc] === null && board[r-3*dr]?.[c-3*dc] === p) {
+                score += 200000;
             }
-        };
+            // Case 2: p . (c) p p
+            if (board[r-dr]?.[c-dc] === null && board[r-2*dr]?.[c-2*dc] === p && board[r+dr]?.[c+dc] === p && board[r+2*dr]?.[c+2*dc] === p) {
+                score += 200000;
+            }
+            return score;
+        }
+
+        // 3. NHẬN DẠNG FORK TỬ THẦN (3-3, 3-4)
+        // Đếm chính xác số lượng đường 3 hở hoặc 4 bị chặn 1 đầu
+        function countThreats(r, c, p) {
+            let open3 = 0, blocked4 = 0, open4 = 0;
+            DIRS.forEach(([dr, dc]) => {
+                let stats = getLineStats(r, c, dr, dc, p);
+                if (stats.count >= 4) open4++;
+                else if (stats.count === 3 && stats.open === 2) open3++;
+                else if (stats.count === 3 && stats.open === 1) blocked4++;
+            });
+            return { open3, blocked4, open4 };
+        }
+
+        // 4. NHẬN DẠNG TAM GIÁC TỬ THẦN (DEATH TRIANGLE)
+        function detectTriangle(r, c, p) {
+            let triangleFound = false;
+            // Kiểm tra 3 điểm tạo thành tam giác vuông cân hoặc tam giác đều
+            const pts = [[-1,0], [0,1], [1,1], [1,0], [0,-1], [-1,-1]];
+            for(let i=0; i<pts.length; i++) {
+                let p1 = pts[i];
+                let p2 = pts[(i+1)%pts.length];
+                if (board[r+p1[0]]?.[c+p1[1]] === p && board[r+p2[0]]?.[c+p2[1]] === p) {
+                    triangleFound = true; break;
+                }
+            }
+            return triangleFound ? 300000 : 0;
+        }
+
+        // ======================================================
+        // II. MODULE PHÒNG THỦ CHIẾN LƯỢC (DEFENSE MASTER)
+        // ======================================================
+
+        function evaluateDefense(r, c) {
+            let p = 'X'; // Soi nước của Player
+            let score = 0;
+            let threats = countThreats(r, c, p);
+
+            // NGUYÊN TẮC: Open Four là tuyệt đối phải chặn
+            if (threats.open4 > 0) score += 1000000000;
+
+            // NGUYÊN TẮC: Cắt Fork (3-3, 3-4) - Đây là Root Block
+            if (threats.open3 >= 2) score += 900000000; 
+            if (threats.open3 >= 1 && threats.blocked4 >= 1) score += 850000000;
+
+            // NGUYÊN TẮC: Chặn Open 3 hở 2 đầu ngay từ đầu
+            if (threats.open3 === 1) score += 100000000;
+
+            // NGUYÊN TẮC: Thoát bẫy chéo mù
+            DIRS.slice(2).forEach(([dr, dc]) => {
+                let stats = getLineStats(r, c, dr, dc, p);
+                if (stats.count >= 2 && stats.open === 2) score += 50000000;
+            });
+
+            // NGUYÊN TẮC: Chặn bẫy hình học
+            score += detectLTrap(r, c, p);
+            score += detectTriangle(r, c, p);
+
+            return score;
+        }
+
+        // ======================================================
+        // III. MODULE TẤN CÔNG (AGGRESSIVE KILLER)
+        // ======================================================
+
+        function evaluateAttack(r, c) {
+            let p = 'O'; // Bot tấn công
+            let score = 0;
+            let threats = countThreats(r, c, p);
+
+            if (threats.open4 > 0) score += 1100000000; // Ưu tiên kết liễu
+            if (threats.open3 >= 2) score += 950000000; // Tạo Double Three
+            if (threats.open3 >= 1) score += 200000000; // Ép đối thủ thủ
+
+            // Gài bẫy Meta
+            score += detectLTrap(r, c, p);
+            score += detectBrokenChain(r, c, 1, 0, p);
+            score += detectTriangle(r, c, p);
+
+            // Đánh sát trung tâm (Positioning)
+            let dist = Math.sqrt(Math.pow(r-5.5, 2) + Math.pow(c-5.5, 2));
+            score += (6 - dist) * 10000;
+
+            return score;
+        }
+
+        // ======================================================
+        // IV. ENGINE CORE - XỬ LÝ NƯỚC ĐI
+        // ======================================================
+
+        function getLineStats(r, c, dr, dc, p) {
+            let count = 0, open = 0, gap = 0;
+            [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
+                let nr = r + tr, nc = c + tc, g = false;
+                for (let i = 0; i < 4; i++) {
+                    if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) break;
+                    if (board[nr][nc] === p) { count++; if(g) gap++; }
+                    else if (board[nr][nc] === null) { 
+                        open++; if(!g) { g=true; nr+=tr; nc+=tc; continue; } break; 
+                    } else break;
+                    nr += tr; nc += tc;
+                }
+            });
+            return { count, open, gap };
+        }
 
         function botMove() {
             if (isGameOver) return;
-            let move = null;
+            let bestScore = -Infinity, move = null;
 
-            // CHIẾN THUẬT 1: PHÒNG THỦ TUYỆT ĐỐI (CẮT GỐC)
-            if (urgentMoves.length > 0) {
-                move = urgentMoves[0];
-            } else {
-                // CHIẾN THUẬT 2: TÌM ĐIỂM CHIẾN LƯỢC (GRANDMASTER SCORING)
-                let bestScore = -Infinity;
-                const candidates = getCandidateMoves();
-                
-                for (let m of candidates) {
-                    let score = scorePosition(m.r, m.c);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        move = m;
+            // Quét từng ô trống trên bàn cờ
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    if (!board[r][c]) {
+                        // AI Đại kiện tướng: Tổng hợp Công và Thủ
+                        let attack = evaluateAttack(r, c);
+                        let defense = evaluateDefense(r, c);
+                        
+                        // "Phòng thủ tốt = ép đối thủ thủ lại"
+                        // Trọng số Defense cao hơn để không bị ngáo trap
+                        let total = attack + (defense * 1.6); 
+
+                        if (total > bestScore) {
+                            bestScore = total;
+                            move = {r, c};
+                        }
                     }
                 }
             }
 
             if (move) {
                 makeMove(move.r, move.c, 'O');
-                if (checkWin(move.r, move.c, 'O')) endGame("V19: Zugzwang - Kết thúc trận đấu!");
-                else document.getElementById('status').innerText = "Đến lượt m!";
+                if (checkWin(move.r, move.c, 'O')) endGame("V25: ZUGZWANG! M ĐÃ RƠI VÀO TỬ LỘ.");
+                else document.getElementById('status').innerText = "Đến lượt m...";
             }
         }
 
-        // --- MODULE 2: BỘ LỌC CANDIDATE (CHỈ TÍNH Ô CÓ KHẢ NĂNG) ---
-        function getCandidateMoves() {
-            let cells = [];
-            for (let r=0; r<SIZE; r++) {
-                for (let c=0; c<SIZE; c++) {
-                    if (!board[r][c] && hasNeighbor(r, c)) {
-                        cells.push({r, c});
-                    }
+        // --- CÁC HÀM UI ---
+        function initBoard() {
+            board = Array(SIZE).fill(null).map(() => Array(SIZE).fill(null));
+            const b = document.getElementById('board'); b.innerHTML = '';
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const el = document.createElement('div');
+                    el.className = 'cell'; el.id = `c-${r}-${c}`;
+                    el.onclick = () => playerMove(r, c);
+                    b.appendChild(el);
                 }
             }
-            if (cells.length === 0) cells.push({r: 5, c: 5}); // Khai cuộc trung tâm
-            return cells;
+            isGameOver = false;
+            document.getElementById('status').innerText = "V25: Trận đấu bắt đầu!";
         }
 
-        function hasNeighbor(r, c) {
-            for (let i=-2; i<=2; i++) {
-                for (let j=-2; j<=2; j++) {
-                    let nr=r+i, nc=c+j;
-                    if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) return true;
-                }
+        function playerMove(r, c) {
+            if (isGameOver || board[r][c]) return;
+            makeMove(r, c, 'X');
+            if (checkWin(r, c, 'X')) endGame("V25: MÀN TRÌNH DIỄN XUẤT SẮC!");
+            else { 
+                document.getElementById('status').innerText = "V25 đang phân tích Trap..."; 
+                setTimeout(botMove, 100); 
             }
-            return false;
-        }
-
-        // --- MODULE 3: CHẤM ĐIỂM TOÀN DIỆN (THEO DANH SÁCH CHIÊU) ---
-        function scorePosition(r, c) {
-            let attack = evaluateSpecificPoint(r, c, 'O');
-            let defense = evaluateSpecificPoint(r, c, 'X');
-            
-            // Nguyên tắc Đại kiện tướng: Ưu tiên tạo Threat ép đối thủ
-            let score = attack + (defense * 1.2); 
-
-            // Chiêu Độc: Ép mở hướng sai (Khai cuộc lệch tâm)
-            let centerDist = Math.sqrt(Math.pow(r-5.5, 2) + Math.pow(c-5.5, 2));
-            score += (6 - centerDist) * 5000;
-
-            // Bẫy sát biên có chủ ý
-            if (r === 0 || r === SIZE-1 || c === 0 || c === SIZE-1) score -= 20000;
-
-            return score;
-        }
-
-        // --- MODULE 4: NHẬN DẠNG TRAP & COMBO ---
-        function evaluateSpecificPoint(r, c, p) {
-            let total = 0;
-            let threats = 0; // Đếm số hướng đe dọa để tìm Fork (3-3, 3-4)
-            const directions = [[1,0], [0,1], [1,1], [1,-1]];
-
-            directions.forEach(([dr, dc]) => {
-                const info = getLineInfo(r, c, dr, dc, p);
-                
-                // 1. Kết liễu (5 quân)
-                if (info.count >= 4) total += 1000000000;
-                
-                // 2. Open Four (4 hở 2 đầu)
-                else if (info.count === 3 && info.open === 2) {
-                    total += 800000000;
-                    threats += 2;
-                }
-                
-                // 3. Open Three / Chuỗi gãy (Trap 9)
-                else if (info.count === 2 && info.open === 2) {
-                    if (info.gap > 0) total += 500000; // 3-3 tiềm năng
-                    else total += 100000;
-                    threats += 1;
-                }
-
-                // 4. Chiêu L, V, T, Z (Phối hợp hướng)
-                total += checkPatternTrap(r, c, dr, dc, p);
-            });
-
-            // Nếu tạo được Fork (Double Threat)
-            if (threats >= 2) total += 950000000;
-
-            return total;
-        }
-
-        function getLineInfo(r, c, dr, dc, p) {
-            let count = 0, open = 0, gap = 0;
-            [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
-                let nr = r + tr, nc = c + tc;
-                let foundGap = false;
-                while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
-                    if (board[nr][nc] === p) {
-                        count++;
-                        if (foundGap) gap++;
-                    } else if (board[nr][nc] === null) {
-                        open++;
-                        if (!foundGap) { foundGap = true; nr += tr; nc += tc; continue; }
-                        break;
-                    } else break;
-                    nr += tr; nc += tc;
-                }
-            });
-            return {count, open, gap};
-        }
-
-        // --- MODULE 5: CHIÊU ĐỘC (L-SHAPE, V-TRAP) ---
-        function checkPatternTrap(r, c, dr, dc, p) {
-            let pScore = 0;
-            const ortho = [[dc, -dr], [-dc, dr]]; // Hướng vuông góc
-            ortho.forEach(([or, oc]) => {
-                if (board[r+or]?.[c+oc] === p) pScore += 150000; // Hình chữ L/V
-            });
-            return pScore;
         }
 
         function makeMove(r, c, p) {
             board[r][c] = p;
-            history.push({r, c, p});
             document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move'));
-            const el = document.getElementById(`c-${r}-${c}`);
-            el.innerText = p;
-            el.classList.add(p, 'last-move');
+            const cell = document.getElementById(`c-${r}-${c}`);
+            cell.innerText = p; cell.classList.add(p, 'last-move');
         }
 
         function checkWin(r, c, p) {
-            return [[1,0], [0,1], [1,1], [1,-1]].some(([dr, dc]) => {
+            return DIRS.some(([dr, dc]) => {
                 let cnt = 1;
                 [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
-                    let nr = r+tr, nc = c+tc;
-                    while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) {
-                        cnt++; nr+=tr; nc+=tc;
+                    let nr = r + tr, nc = c + tc;
+                    while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr][nc] === p) {
+                        cnt++; nr += tr; nc += tc;
                     }
                 });
                 return cnt >= 5;
             });
         }
 
-        function endGame(msg) {
-            isGameOver = true;
-            document.getElementById('status').innerText = msg;
-        }
-
-        document.getElementById('startBtn').onclick = () => {
-            isGameOver = false;
-            initBoard();
-            document.getElementById('status').innerText = "V19: Đang triển khai Opening Traps...";
-        };
+        function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
+        document.getElementById('startBtn').onclick = initBoard;
     </script>
 </body>
 </html>
