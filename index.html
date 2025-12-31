@@ -1,1 +1,159 @@
-<script type="module" src="./src/core/Game_Core.js"></script>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Caro - Challenge Mode</title>
+    <style>
+        :root { --bg: #0d1117; --cell: #161b22; --accent: #238636; --bot: #f85149; }
+        body { background: var(--bg); color: #c9d1d9; font-family: 'Consolas', monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .board { display: grid; grid-template-columns: repeat(12, 38px); gap: 1px; background: #30363d; border: 4px solid #30363d; margin-top: 20px; }
+        .cell { width: 38px; height: 38px; background: var(--cell); display: flex; justify-content: center; align-items: center; font-size: 22px; cursor: pointer; transition: 0.1s; }
+        .cell:hover { background: #1f242b; }
+        .cell.x { color: #58a6ff; font-weight: bold; }
+        .cell.o { color: var(--bot); font-weight: bold; }
+        #status { margin-top: 20px; color: #f1c40f; font-size: 18px; font-weight: bold; }
+        button { margin-top: 20px; padding: 10px 20px; cursor: pointer; background: var(--accent); color: white; border: none; border-radius: 5px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2 style="color: var(--bot)">BOT CARO: CHALLENGE MODE</h2>
+    <div id="status">Status: Connecting...</div>
+    <div class="board" id="board"></div>
+    <button onclick="location.reload()">CHƠI VÁN MỚI</button>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+
+    const firebaseConfig = { databaseURL: "https://carovippro-default-rtdb.firebaseio.com/" };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const brainRef = ref(db, 'bot_memory');
+
+    const SIZE = 12;
+    let board = Array(SIZE).fill().map(() => Array(SIZE).fill(0));
+    let gameOver = false;
+    let brain = { win_moves: {}, lose_moves: {} };
+
+    onValue(brainRef, (s) => {
+        if(s.exists()) {
+            brain = s.val();
+            if(!brain.win_moves) brain.win_moves = {};
+            if(!brain.lose_moves) brain.lose_moves = {};
+            document.getElementById('status').innerText = "Status: Bot Ready!";
+        }
+    });
+
+    function init() {
+        const b = document.getElementById('board');
+        b.innerHTML = '';
+        for(let r=0; r<SIZE; r++) {
+            for(let c=0; c<SIZE; c++) {
+                let cell = document.createElement('div');
+                cell.className = 'cell'; cell.id = `c-${r}-${c}`;
+                cell.onclick = () => playerMove(r, c);
+                b.appendChild(cell);
+            }
+        }
+    }
+
+    function playerMove(r, c) {
+        if(board[r][c] !== 0 || gameOver) return;
+        makeMove(r, c, 1);
+        if(!gameOver) {
+            document.getElementById('status').innerText = "Bot đang suy nghĩ...";
+            setTimeout(() => botTurn(), 100);
+        }
+    }
+
+    function makeMove(r, c, p) {
+        board[r][c] = p;
+        const cell = document.getElementById(`c-${r}-${c}`);
+        cell.innerText = p === 1 ? 'X' : 'O';
+        cell.className = `cell ${p === 1 ? 'x' : 'o'}`;
+        
+        if(checkWin(r, c, p)) {
+            document.getElementById('status').innerText = (p === 2 ? "BOT" : "PLAYER") + " THẮNG!";
+            gameOver = true;
+            learn(p);
+        }
+    }
+
+    function botTurn() {
+        if(gameOver) return;
+        let move = findBestMove();
+        makeMove(move.r, move.c, 2);
+        if(!gameOver) document.getElementById('status').innerText = "Đến lượt bạn!";
+    }
+
+    function findBestMove() {
+        let bestScore = -Infinity;
+        let moves = [];
+        for(let r=0; r<SIZE; r++) {
+            for(let c=0; c<SIZE; c++) {
+                if(board[r][c] === 0) {
+                    let score = evaluate(r, c);
+                    if(score > bestScore) {
+                        bestScore = score;
+                        moves = [{r, c}];
+                    } else if (score === bestScore) {
+                        moves.push({r, c});
+                    }
+                }
+            }
+        }
+        return moves[Math.floor(Math.random() * moves.length)];
+    }
+
+    function evaluate(r, c) {
+        let score = 0;
+        score += checkPatterns(r, c, 1) * 1.6; 
+        score += checkPatterns(r, c, 2);
+        return score;
+    }
+
+    function checkPatterns(r, c, p) {
+        let score = 0;
+        const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+        for(let [dr, dc] of dirs) {
+            let line = "";
+            for(let i=-4; i<=4; i++) {
+                let nr = r + dr*i, nc = c + dc*i;
+                if(nr==r && nc==c) line += "P";
+                else if(nr<0 || nr>=SIZE || nc<0 || nr>=SIZE) line += "B";
+                else line += board[nr][nc] == p ? "P" : (board[nr][nc] == 0 ? "0" : "E");
+            }
+            if(line.includes("PPPPP")) score += 100000;
+            if(line.includes("0PPPP0")) score += 20000;
+            if(line.includes("0PPP0")) score += 5000;
+            if(line.includes("0PP0P0") || line.includes("0P0PP0")) score += 4500;
+        }
+        return score;
+    }
+
+    function learn(winner) {
+        // Chỉ học khi Người thắng (Bot thua) để học nước đi khôn
+        if (winner === 1) {
+            let state = board.flat().join("").slice(0, 50);
+            if(!brain.lose_moves) brain.lose_moves = {};
+            brain.lose_moves[state] = true;
+            set(brainRef, brain); 
+        }
+    }
+
+    function checkWin(r, c, p) {
+        const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+        for(let [dr, dc] of dirs) {
+            let cnt = 1;
+            for(let i=1; i<5; i++) if(board[r+dr*i]?.[c+dc*i] === p) cnt++; else break;
+            for(let i=1; i<5; i++) if(board[r-dr*i]?.[c-dc*i] === p) cnt++; else break;
+            if(cnt >= 5) return true;
+        }
+        return false;
+    }
+
+    init();
+</script>
+</body>
+</html>
