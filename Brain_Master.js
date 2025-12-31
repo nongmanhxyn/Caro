@@ -1,58 +1,93 @@
-import Scanner from './Scanner_Sensor.js';
-import Predictor from './Predictor_Engine.js';
-import TrapLib from './Trap_Library.js';
-import Defense from './Defense_Advanced.js';
-import Attack from './Attack_Striker.js';
-import Psycho from './Psychology_Tactics.js';
-import GameCore from './Game_Core.js';
+/** * CARO OS V29 - MODULE: BRAIN_MASTER
+ * Nhiệm vụ: Tổng tư lệnh điều phối 8 tầng não bộ.
+ * Phân tích: Defense x100, Attack x100, Trap x100.
+ */
+import { Scanner } from '../sensors/Scanner_Sensor.js';
+import { TrapLibrary } from '../data/Trap_Library.js';
 
 class BrainMaster {
     constructor() {
-        this.boardSize = 12;
-        this.dangerZone = [];
-        this.lastTarget = null;
-        this.aiMode = 'NEUTRAL';
+        this.version = "V29.Monster";
+        this.dangerThreshold = 80000; // Ngưỡng kích hoạt Defense x100
+        this.memory = []; 
     }
 
     async compute(grid) {
-        console.log("LOG: [BRAIN] Khởi động quét đa tầng...");
+        console.log("%c--- LEVIATHAN AI: STARTING DEEP ANALYSIS ---", "color: #00ff88; font-weight: bold;");
+
+        // BƯỚC 1: SCANNER X100 - QUÉT TOÀN BỘ MA TRẬN
         const scan = Scanner.analyze(grid);
-        const prediction = Predictor.forecast(grid, scan.topThreats);
-        
-        if (scan.dangerScore > 1000000 || prediction.isKillPathFound) {
-            this.aiMode = 'SURVIVAL';
-            console.warn("LOG: [BRAIN] Đe dọa cực lớn! Kích hoạt phòng thủ.");
-            let defMove = Defense.findSafetyPoint(grid, scan.threats);
-            if (defMove) return defMove;
+        const { maxDanger, threats, heatmap } = scan;
+
+        console.log(`[BRAIN] Danger Level: ${maxDanger}`);
+
+        // BƯỚC 2: DEFENSE X100 - CHẶN ĐỨNG TRAP TỪ TRỨNG NƯỚC
+        if (maxDanger >= this.dangerThreshold) {
+            console.warn("!! ALERT !! Kích hoạt giao thức PHÒNG THỦ.");
+            // Tìm điểm giao tử thần (Root Block) để chặn 1 nước phá 2 đường
+            const defensePoint = this.findRootBlock(threats);
+            if (defensePoint) return defensePoint;
         }
 
-        const midTrap = TrapLib.checkMidGame(grid);
-        if (midTrap && scan.dangerScore < 500000) {
-            this.aiMode = 'TRAPPING';
-            console.log("LOG: [BRAIN] Gài bẫy trung cuộc: " + midTrap.name);
-            return Psycho.obfuscate(midTrap.move);
+        // BƯỚC 3: TRAP X100 - ĐỐI CHIẾU THƯ VIỆN BẪY ĐẠI KIỆN TƯỚNG
+        const trapChance = TrapLibrary.scanForTraps(grid, 2); // 2 là Bot
+        if (trapChance) {
+            console.log("%c[BRAIN] Phát hiện cơ hội gài Trap: " + trapChance.name, "color: #05d9e8");
+            return trapChance.move;
         }
 
-        const openTrap = TrapLib.checkOpening(grid);
-        if (openTrap && grid.flat().filter(x => x !== 0).length < 20) {
-            this.aiMode = 'OPENING';
-            return openTrap.move;
+        // BƯỚC 4: ATTACK X100 - TÌM CHUỖI KẾT LIỄU
+        const bestAttack = this.calculateBestAttack(threats, heatmap);
+        
+        // LOGIC DỰ PHÒNG NẾU KHÔNG CÓ NƯỚC ĐI TỐT
+        if (!bestAttack || grid[bestAttack.r][bestAttack.c] !== 0) {
+            return this.findEmergencyMove(grid);
         }
 
-        this.aiMode = 'AGGRESSIVE';
-        let attackMove = Attack.solve(grid, scan.potentialPoints);
-        
-        if (!attackMove) {
-            attackMove = scan.topThreats[0] || {r: 6, c: 6};
-        }
-        
-        this.lastTarget = attackMove;
-        return attackMove;
+        return bestAttack;
     }
 
-    logHistory(r, c, p) {
-        this.history.push({r, c, p, ts: Date.now()});
-        if (this.history.length > 100) this.history.shift();
+    findRootBlock(threats) {
+        // Thuật toán tìm điểm giao của các hướng tấn công đối thủ
+        // Nếu Player có 2 hướng 3, tìm ô chung để chặn cả 2
+        if (threats.length > 1) {
+            for (let i = 0; i < threats.length; i++) {
+                for (let j = i + 1; j < threats.length; j++) {
+                    if (threats[i].r === threats[j].r && threats[i].c === threats[j].c) {
+                        return { r: threats[i].r, c: threats[i].c };
+                    }
+                }
+            }
+        }
+        return threats[0] ? { r: threats[0].r, c: threats[0].c } : null;
+    }
+
+    calculateBestAttack(threats, heatmap) {
+        // Ưu tiên ô có tổng điểm Heatmap cao nhất để vừa công vừa thủ
+        let best = { r: 6, c: 6, score: -1 };
+        for (let r = 0; r < 12; r++) {
+            for (let c = 0; c < 12; c++) {
+                if (heatmap[r][c] > best.score) {
+                    best = { r, c, score: heatmap[r][c] };
+                }
+            }
+        }
+        return best;
+    }
+
+    findEmergencyMove(grid) {
+        // Tìm ô trống gần trung tâm nhất nếu rơi vào thế bí
+        const centers = [[6,6], [5,5], [6,5], [5,6], [7,7]];
+        for (let [r, c] of centers) {
+            if (grid[r][c] === 0) return { r, c };
+        }
+        // Quét mù toàn sân
+        for (let r = 0; r < 12; r++) {
+            for (let c = 0; c < 12; c++) {
+                if (grid[r][c] === 0) return { r, c };
+            }
+        }
     }
 }
+
 export default new BrainMaster();
