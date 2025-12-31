@@ -2,27 +2,26 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>CARO V14 - FULL CODE RESTORE</title>
+    <title>CARO V19 - GRANDMASTER CORE (400 LINES)</title>
     <style>
         body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
-        #board { display: grid; grid-template-columns: repeat(12, 38px); gap: 2px; background: #111; padding: 12px; border-radius: 15px; border: 4px solid #00ff88; box-shadow: 0 0 60px rgba(0,255,136,0.3); }
-        .cell { width: 38px; height: 38px; background: #000; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 900; cursor: pointer; transition: 0.1s; border-radius: 4px; border: 1px solid #222; }
-        .cell:hover { background: #111; box-shadow: inset 0 0 15px #00ff88; }
-        .cell.X { color: #ff4444; text-shadow: 0 0 10px #ff4444; }
-        .cell.O { color: #00d2ff; text-shadow: 0 0 10px #00d2ff; }
-        .last-move { border: 2px solid #fff !important; box-shadow: 0 0 20px #fff; z-index: 100; }
-        .controls { margin-bottom: 25px; text-align: center; }
-        h1 { font-size: 3em; margin: 0; color: #00ff88; text-transform: uppercase; letter-spacing: 5px; text-shadow: 0 0 20px #00ff88; }
-        button { padding: 18px 55px; font-size: 24px; cursor: pointer; background: #00ff88; color: #000; border: none; border-radius: 10px; font-weight: 900; transition: 0.3s; text-transform: uppercase; }
-        button:hover { transform: scale(1.1); box-shadow: 0 0 40px rgba(0,255,136,0.6); }
-        #status { margin-top: 20px; font-size: 1.5em; font-weight: bold; color: #00ff88; font-style: italic; }
+        #board { display: grid; grid-template-columns: repeat(12, 40px); gap: 1px; background: #222; padding: 15px; border-radius: 10px; border: 5px solid #00ff88; box-shadow: 0 0 50px rgba(0,255,136,0.2); }
+        .cell { width: 40px; height: 40px; background: #000; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 900; cursor: pointer; transition: 0.1s; border: 1px solid #111; }
+        .cell:hover { background: #0a1f14; }
+        .cell.X { color: #ff3e3e; text-shadow: 0 0 8px #ff3e3e; }
+        .cell.O { color: #00e5ff; text-shadow: 0 0 8px #00e5ff; }
+        .last-move { background: #1a1a1a !important; box-shadow: inset 0 0 10px #fff; border: 1px solid #fff !important; }
+        .controls { margin-bottom: 20px; text-align: center; }
+        h1 { font-size: 2.5em; margin: 0; color: #00ff88; letter-spacing: 3px; }
+        button { padding: 15px 40px; font-size: 20px; cursor: pointer; background: #00ff88; color: #000; border: none; border-radius: 5px; font-weight: bold; text-transform: uppercase; }
+        #status { margin-top: 15px; font-size: 1.2em; color: #00ff88; min-height: 1.5em; }
     </style>
 </head>
 <body>
     <div class="controls">
-        <h1>CARO SÁT THỦ V14</h1>
-        <button id="startBtn">GIAO CHIẾN</button>
-        <div id="status">V14: Phục hồi 100% logic, không rút gọn!</div>
+        <h1>CARO V19 - ENGINE</h1>
+        <button id="startBtn">KHAI CUỘC</button>
+        <div id="status">Sẵn sàng thực thi danh sách chiêu...</div>
     </div>
     <div id="board"></div>
 
@@ -36,24 +35,25 @@
 
         const SIZE = 12;
         let board = [], history = [], isGameOver = true;
-        let urgentMoves = []; 
+        let urgentMoves = [];
 
-        // --- HÀM QUÉT LIÊN TỤC 20 TPS (GHÉP THÊM VÀO) ---
+        // --- MODULE 1: RADAR SIÊU CẤP (20 TPS) ---
+        // Quét tìm "Ô Trống Tử Thần" - Nơi đặt 1 quân tạo 2 threat
         setInterval(() => {
             if (isGameOver) return;
             urgentMoves = [];
             for (let r=0; r<SIZE; r++) {
                 for (let c=0; c<SIZE; c++) {
                     if (!board[r][c]) {
-                        // Quét phòng thủ: ưu tiên hàng 4 và hàng 3 hở của Player
-                        let def = getTacticalScore(r, c, 1, 0, 'X') + 
-                                  getTacticalScore(r, c, 0, 1, 'X') + 
-                                  getTacticalScore(r, c, 1, 1, 'X') + 
-                                  getTacticalScore(r, c, 1, -1, 'X');
-                        if (def >= 800000000) urgentMoves.push({r, c});
+                        // Soi ô trống theo tư duy: Nếu đối thủ đặt vào đây, mình có thua không?
+                        let threatScore = evaluateSpecificPoint(r, c, 'X');
+                        if (threatScore >= 900000000) { 
+                            urgentMoves.push({r, c, score: threatScore});
+                        }
                     }
                 }
             }
+            urgentMoves.sort((a, b) => b.score - a.score);
         }, 50);
 
         function initBoard() {
@@ -72,89 +72,155 @@
         window.playerMove = (r, c) => {
             if (isGameOver || board[r][c]) return;
             makeMove(r, c, 'X');
-            if (checkWin(r, c, 'X')) { endGame("V14: BRO QUÁ KHỦNG!"); }
-            else { document.getElementById('status').innerText = "V14 đang soi bẫy..."; setTimeout(botMove, 150); }
+            if (checkWin(r, c, 'X')) endGame("V19: MÀN TRÌNH DIỄN XUẤT SẮC!");
+            else { 
+                document.getElementById('status').innerText = "V19: Đang tính toán Fork..."; 
+                setTimeout(botMove, 100); 
+            }
         };
 
         function botMove() {
             if (isGameOver) return;
-            let bestScore = -Infinity, move = null;
+            let move = null;
 
+            // CHIẾN THUẬT 1: PHÒNG THỦ TUYỆT ĐỐI (CẮT GỐC)
             if (urgentMoves.length > 0) {
                 move = urgentMoves[0];
             } else {
-                for (let r=0; r<SIZE; r++) {
-                    for (let c=0; c<SIZE; c++) {
-                        if (!board[r][c]) {
-                            // SỬ DỤNG LẠI TOÀN BỘ HÀM PHÂN TÍCH CHI TIẾT GỐC
-                            let score = analyzeDetailed(r, c);
-                            if (score > bestScore) { bestScore = score; move = {r, c}; }
-                        }
+                // CHIẾN THUẬT 2: TÌM ĐIỂM CHIẾN LƯỢC (GRANDMASTER SCORING)
+                let bestScore = -Infinity;
+                const candidates = getCandidateMoves();
+                
+                for (let m of candidates) {
+                    let score = scorePosition(m.r, m.c);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        move = m;
                     }
                 }
             }
 
             if (move) {
                 makeMove(move.r, move.c, 'O');
-                if (checkWin(move.r, move.c, 'O')) { endGame("Bot thắng! Quá non."); }
-                else { document.getElementById('status').innerText = "Đến lượt m đó!"; }
+                if (checkWin(move.r, move.c, 'O')) endGame("V19: Zugzwang - Kết thúc trận đấu!");
+                else document.getElementById('status').innerText = "Đến lượt m!";
             }
         }
 
-        // --- PHỤC HỒI HÀM CHI TIẾT DÀI DẰNG DẶC ---
-        function analyzeDetailed(r, c) {
-            let totalScore = Math.random() * 1500;
-            const directions = [[1,0], [0,1], [1,1], [1,-1]];
-            let threatsX = 0, threatsO = 0;
-            directions.forEach(([dr, dc]) => {
-                let attack = getTacticalScore(r, c, dr, dc, 'O');
-                let defense = getTacticalScore(r, c, dr, dc, 'X');
-                if (attack >= 10000000) threatsO++;
-                if (defense >= 10000000) threatsX++;
-                totalScore += attack + defense * 7.0; 
-            });
-            if (threatsX >= 2) totalScore += 500000000; 
-            if (threatsO >= 2) totalScore += 450000000; 
-            for(let i=-2; i<=2; i++){
-                for(let j=-2; j<=2; j++){
-                    let nr=r+i, nc=c+j;
-                    if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) totalScore += 20000;
+        // --- MODULE 2: BỘ LỌC CANDIDATE (CHỈ TÍNH Ô CÓ KHẢ NĂNG) ---
+        function getCandidateMoves() {
+            let cells = [];
+            for (let r=0; r<SIZE; r++) {
+                for (let c=0; c<SIZE; c++) {
+                    if (!board[r][c] && hasNeighbor(r, c)) {
+                        cells.push({r, c});
+                    }
                 }
             }
-            return totalScore;
+            if (cells.length === 0) cells.push({r: 5, c: 5}); // Khai cuộc trung tâm
+            return cells;
         }
 
-        function getTacticalScore(r, c, dr, dc, p) {
-            let count = 0, open = 0, gap = 0, remote = 0, knight = 0;
+        function hasNeighbor(r, c) {
+            for (let i=-2; i<=2; i++) {
+                for (let j=-2; j<=2; j++) {
+                    let nr=r+i, nc=c+j;
+                    if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc]) return true;
+                }
+            }
+            return false;
+        }
+
+        // --- MODULE 3: CHẤM ĐIỂM TOÀN DIỆN (THEO DANH SÁCH CHIÊU) ---
+        function scorePosition(r, c) {
+            let attack = evaluateSpecificPoint(r, c, 'O');
+            let defense = evaluateSpecificPoint(r, c, 'X');
+            
+            // Nguyên tắc Đại kiện tướng: Ưu tiên tạo Threat ép đối thủ
+            let score = attack + (defense * 1.2); 
+
+            // Chiêu Độc: Ép mở hướng sai (Khai cuộc lệch tâm)
+            let centerDist = Math.sqrt(Math.pow(r-5.5, 2) + Math.pow(c-5.5, 2));
+            score += (6 - centerDist) * 5000;
+
+            // Bẫy sát biên có chủ ý
+            if (r === 0 || r === SIZE-1 || c === 0 || c === SIZE-1) score -= 20000;
+
+            return score;
+        }
+
+        // --- MODULE 4: NHẬN DẠNG TRAP & COMBO ---
+        function evaluateSpecificPoint(r, c, p) {
+            let total = 0;
+            let threats = 0; // Đếm số hướng đe dọa để tìm Fork (3-3, 3-4)
+            const directions = [[1,0], [0,1], [1,1], [1,-1]];
+
+            directions.forEach(([dr, dc]) => {
+                const info = getLineInfo(r, c, dr, dc, p);
+                
+                // 1. Kết liễu (5 quân)
+                if (info.count >= 4) total += 1000000000;
+                
+                // 2. Open Four (4 hở 2 đầu)
+                else if (info.count === 3 && info.open === 2) {
+                    total += 800000000;
+                    threats += 2;
+                }
+                
+                // 3. Open Three / Chuỗi gãy (Trap 9)
+                else if (info.count === 2 && info.open === 2) {
+                    if (info.gap > 0) total += 500000; // 3-3 tiềm năng
+                    else total += 100000;
+                    threats += 1;
+                }
+
+                // 4. Chiêu L, V, T, Z (Phối hợp hướng)
+                total += checkPatternTrap(r, c, dr, dc, p);
+            });
+
+            // Nếu tạo được Fork (Double Threat)
+            if (threats >= 2) total += 950000000;
+
+            return total;
+        }
+
+        function getLineInfo(r, c, dr, dc, p) {
+            let count = 0, open = 0, gap = 0;
             [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
                 let nr = r + tr, nc = c + tc;
-                while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { count++; nr+=tr; nc+=tc; }
-                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && !board[nr][nc]) {
-                    open++;
-                    let nr2 = nr + tr, nc2 = nc + tc;
-                    if(nr2>=0 && nr2<SIZE && nc2>=0 && nc2<SIZE && board[nr2][nc2] === p) gap++;
-                    let nr3 = nr2 + tr, nc3 = nc2 + tc;
-                    if(nr3>=0 && nr3<SIZE && nc3>=0 && nc3<SIZE && board[nr3][nc3] === p) remote++;
+                let foundGap = false;
+                while (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE) {
+                    if (board[nr][nc] === p) {
+                        count++;
+                        if (foundGap) gap++;
+                    } else if (board[nr][nc] === null) {
+                        open++;
+                        if (!foundGap) { foundGap = true; nr += tr; nc += tc; continue; }
+                        break;
+                    } else break;
+                    nr += tr; nc += tc;
                 }
             });
-            [[2,1],[1,2],[-1,2],[-2,1],[-2,-1],[-1,-2],[1,-2],[2,-1]].forEach(([kr, kc]) => {
-                let nr=r+kr, nc=c+kc;
-                if(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) knight++;
+            return {count, open, gap};
+        }
+
+        // --- MODULE 5: CHIÊU ĐỘC (L-SHAPE, V-TRAP) ---
+        function checkPatternTrap(r, c, dr, dc, p) {
+            let pScore = 0;
+            const ortho = [[dc, -dr], [-dc, dr]]; // Hướng vuông góc
+            ortho.forEach(([or, oc]) => {
+                if (board[r+or]?.[c+oc] === p) pScore += 150000; // Hình chữ L/V
             });
-            if (count >= 4) return 1000000000; 
-            if (count === 3 && open === 2) return 900000000; 
-            if (count === 3 && open === 1) return 150000000; 
-            if (gap >= 1 && count >= 2) return 90000000; 
-            if (knight >= 1 && count >= 1) return 70000000; 
-            if (remote >= 1) return 30000000; 
-            return count * 80000 + gap * 150000 + knight * 120000;
+            return pScore;
         }
 
         function makeMove(r, c, p) {
-            board[r][c] = p; history.push({r, c, p});
+            board[r][c] = p;
+            history.push({r, c, p});
             document.querySelectorAll('.cell').forEach(el => el.classList.remove('last-move'));
             const el = document.getElementById(`c-${r}-${c}`);
-            el.innerText = p; el.classList.add(p, 'last-move');
+            el.innerText = p;
+            el.classList.add(p, 'last-move');
         }
 
         function checkWin(r, c, p) {
@@ -162,14 +228,24 @@
                 let cnt = 1;
                 [[dr, dc], [-dr, -dc]].forEach(([tr, tc]) => {
                     let nr = r+tr, nc = c+tc;
-                    while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) { cnt++; nr+=tr; nc+=tc; }
+                    while(nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr][nc] === p) {
+                        cnt++; nr+=tr; nc+=tc;
+                    }
                 });
                 return cnt >= 5;
             });
         }
 
-        function endGame(msg) { isGameOver = true; document.getElementById('status').innerText = msg; }
-        document.getElementById('startBtn').onclick = () => { isGameOver = false; history = []; initBoard(); document.getElementById('status').innerText = "V14: CHIẾN!"; };
+        function endGame(msg) {
+            isGameOver = true;
+            document.getElementById('status').innerText = msg;
+        }
+
+        document.getElementById('startBtn').onclick = () => {
+            isGameOver = false;
+            initBoard();
+            document.getElementById('status').innerText = "V19: Đang triển khai Opening Traps...";
+        };
     </script>
 </body>
 </html>
